@@ -40,6 +40,8 @@ Bring your own LLM key. The extension works with:
 
 Pick a provider in Settings, paste your key, and you're done. Your key stays on your device. There's no proxy, no analytics, no third-party server in the middle — the extension calls the provider's API directly from your browser.
 
+Don't want to pay any provider? Sign up for OpenRouter (free, no card), grab a key, point the extension at https://openrouter.ai/api/v1, and pick any model with the :free suffix. Step-by-step is in Settings.
+
 WHAT IT DOES
 
 • Clusters by intent, not topic. "Refactor billing," "Laptop buying," "Hacker News dive" — distinctive labels that stay readable when Chrome collapses tab groups in the strip.
