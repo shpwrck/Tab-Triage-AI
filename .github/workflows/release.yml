@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate manifest.json
+        run: python3 -c "import json; json.load(open('manifest.json'))"
+
+      - name: Confirm tag matches manifest version
+        run: |
+          set -e
+          TAG="${GITHUB_REF_NAME#v}"
+          VER=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+          if [ "$TAG" != "$VER" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match manifest version $VER" >&2
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_ENV"
+
+      - name: Build extension zip
+        run: ./scripts/package.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Tab Triage AI ${{ github.ref_name }}
+          files: dist/tab-triage-ai-${{ env.version }}.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true

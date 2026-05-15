@@ -28,6 +28,29 @@ if ! command -v zip >/dev/null 2>&1; then
   echo "package.sh needs the 'zip' command. Install it (e.g. apt-get install zip)." >&2
   exit 1
 fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "package.sh needs node (for syntax-checking JS)." >&2
+  exit 1
+fi
+
+# Preflight: every JS file we are about to ship must parse cleanly.
+echo "Syntax-checking JS files…"
+preflight_fail=0
+while IFS= read -r f; do
+  if ! node --check "$f" >/dev/null 2>&1; then
+    echo "  ! syntax error in $f" >&2
+    node --check "$f" || true
+    preflight_fail=1
+  fi
+done < <(find background popup options newtab lib -name "*.js" -type f | sort)
+if (( preflight_fail )); then
+  echo "Aborting — fix syntax errors and re-run." >&2
+  exit 1
+fi
+
+# Preflight: manifest.json must be valid JSON.
+python3 -c "import json; json.load(open('manifest.json'))" \
+  || { echo "manifest.json is not valid JSON" >&2; exit 1; }
 
 VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
 NAME="tab-triage-ai-${VERSION}"

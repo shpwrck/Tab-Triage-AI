@@ -65,6 +65,15 @@ python3 icons/build_icons.py
 
 No bundler, no transpile step — files load directly into Chrome.
 
+## Releasing
+
+GitHub Actions (`.github/workflows/`) handles automation:
+
+- `ci.yml` runs on every push and PR: validates `manifest.json`, syntax-checks every JS file in `background/`, `popup/`, `options/`, `newtab/`, `lib/`, and dry-runs `package.sh --check`.
+- `release.yml` runs on push of a `v*` tag: verifies the tag matches `manifest.json`'s `version`, builds `dist/tab-triage-ai-<version>.zip`, and creates a GitHub Release with the zip attached and auto-generated release notes.
+
+To cut a release: bump `manifest.json` `version`, commit, then `git tag v<version> && git push origin v<version>`. The workflow handles the rest. Download the zip from the Release page and upload at <https://chrome.google.com/webstore/devconsole/>.
+
 ## Live billing
 
 - ExtensionPay slug: `tab-triage-ai`

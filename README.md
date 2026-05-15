@@ -1,76 +1,78 @@
 # Tab Triage AI
 
-A Chrome extension that groups your open tabs by **intent** (research project, buying decision, rabbit hole), summarizes each cluster in three bullets, and lets you save resumable research sessions.
+A Chrome extension that groups your open tabs by **what you're trying to do** — research project, buying decision, rabbit hole, active task — summarizes each cluster in three bullets, and helps you clean up stale and duplicate tabs.
 
-Bring-your-own-key. Works with Anthropic (Claude), OpenAI / OpenAI-compatible (OpenRouter, Groq, Together, Ollama, LM Studio, vLLM), or Google (Gemini). Your key stays on this device and is sent directly to the provider's API — no proxy in between.
+Bring-your-own-key. Works with Anthropic (Claude), OpenAI / any OpenAI-compatible endpoint (OpenRouter, Groq, Together, Ollama, LM Studio, vLLM, etc.), or Google (Gemini). Your key stays on your device and is sent directly to the provider's API. No proxy, no analytics, no backend.
 
-## Install (developer mode)
+## Install
 
-1. Clone this repo.
-2. (Optional) regenerate icons: `python3 icons/build_icons.py` — Pillow required.
-3. Open `chrome://extensions`, toggle **Developer mode** on, click **Load unpacked**, and choose this folder.
-4. Click the new toolbar icon → **Settings** → paste your Anthropic API key. Get one at [console.anthropic.com](https://console.anthropic.com/settings/keys).
-5. Hit **Test connection** to verify, then close settings and click **Triage tabs** in the popup.
+Coming soon to the Chrome Web Store.
 
-Keyboard shortcut: `Ctrl+Shift+Y` (`Cmd+Shift+Y` on macOS).
+Until then, install from source:
 
-## How it works
+1. Download or clone this repo.
+2. Open `chrome://extensions`, toggle **Developer mode** on, click **Load unpacked**, and choose the folder.
+3. Click the new toolbar icon and open **Settings** to set up a provider (see below).
 
-- The popup lists tabs in the current window. You pick which to include (default: all).
-- "Triage" sends `{id, title, url}` for each selected tab to Claude with a system prompt asking it to cluster by intent and write three-bullet summaries.
-- Result is shown grouped, with a tab list under each group. Save as a session (stored in `chrome.storage.local`), restore later as a new window, or copy to Markdown.
+## Pick a provider
 
-## Auto-triage (opt-in)
+Open Settings, pick a provider, paste an API key, click **Test connection**.
 
-Enable from Settings → Auto-triage to have the extension silently re-group **untouched** (non-grouped) tabs in a window into native Chrome tab groups as you browse. Defaults:
+- **Anthropic (Claude)** — get a key at [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys).
+- **OpenAI** — get a key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
+- **Google (Gemini)** — get a key at [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey).
+- **OpenAI-compatible** (OpenRouter, Groq, Together, Ollama, LM Studio, vLLM, etc.) — paste your key and set the Base URL to your provider.
 
-- 10s debounce after the last new tab
-- 90s minimum gap between runs per window
-- 6+ ungrouped tabs required before firing
-- Your manual Chrome tab groups are never modified
-- One Claude API call per run (Haiku); see Settings for "Pause for 1 hour" / "Pause until tomorrow" kill switches
+### Don't want to pay for an LLM?
 
-State is durable across service-worker eviction: the debounce uses `chrome.alarms`, throttle and pause are persisted to `chrome.storage.local`.
+OpenRouter offers several models for free with no credit card required.
 
-## Enabling Lifetime billing
+1. Sign up at [openrouter.ai](https://openrouter.ai).
+2. Create a key at [openrouter.ai/keys](https://openrouter.ai/keys).
+3. In the extension Settings:
+   - Provider: **OpenAI-compatible**
+   - API key: paste your OpenRouter key
+   - Base URL: `https://openrouter.ai/api/v1`
+   - Model: any with the `:free` suffix from [the free model list](https://openrouter.ai/models?max_price=0) (e.g. `deepseek/deepseek-chat-v3-0324:free`, `google/gemini-2.0-flash-exp:free`, `meta-llama/llama-3.3-70b-instruct:free`).
+4. Click **Test connection**.
 
-The repo ships with ExtensionPay wired in but disabled. To turn it on:
+Free models have per-day limits and can be slower than paid ones. If a triage fails, swap in a different `:free` model.
 
-1. Sign up at [extensionpay.com](https://extensionpay.com) and create a new extension. The slug you choose becomes part of your checkout URL.
-2. Configure the product as a **one-time purchase** (lifetime). Set the price you want.
-3. Open `lib/config.js`:
-   - Replace `EXTPAY_EXTENSION_ID` with your slug.
-   - Set `LIFETIME_PRICE_USD` to match what you set on ExtensionPay (for UI copy only — the authoritative price lives on their side).
-   - Flip `BILLING_ENABLED` to `true`.
-4. Reload the unpacked extension in `chrome://extensions`.
+## What it does
 
-Lifetime status is read from ExtPay on every popup/options open and cached in `chrome.storage.local`. The service worker's `startBackground()` keeps the cache fresh and refreshes it the moment the user completes checkout (via the content script that runs on `extensionpay.com`).
+- **Triage tabs** — clusters the tabs in the current window by intent, with three-bullet summaries and one-click "Apply as Chrome tab groups." Keyboard shortcut: `Cmd/Ctrl+Shift+U`.
+- **Auto-triage (opt-in)** — quietly re-clusters your window into native Chrome tab groups as you browse. Tunable debounce, throttle, and minimum-tab threshold. Off by default.
+- **Stale-tab badge** — count of tabs you haven't touched in a configurable threshold (default 24h) shown on the toolbar icon.
+- **Sleep stale tabs** — optional auto-discard at the stale threshold to free memory; tabs stay in the tab strip and reload on click.
+- **New-tab dashboard** — stats, latest triage, stale tabs, and duplicate URLs in one view.
+- **Saved sessions** — close a group of tabs without losing the work; restore later into the current window or a new one. Optional notes per session.
+- **Cross-Chrome sync (opt-in)** — saved sessions mirror via `chrome.storage.sync` to every Chrome you're signed into.
+- **Notion export** — send a triage result, a single group, or a saved session straight into a Notion page.
+- **Global search** — `Cmd/Ctrl+Shift+K` opens the popup with a fuzzy search across every open tab in every window plus every saved session.
+- **Custom grouping rules** — free-form preferences appended to the triage prompt (e.g. "Keep work email separate from personal").
 
-## Project layout
+## Keyboard shortcuts
 
-```
-manifest.json          # MV3 manifest
-background/            # service worker (window restore + hotkey)
-popup/                 # main UI shown when you click the toolbar
-options/               # API key + waitlist + privacy
-lib/claude.js          # direct fetch to api.anthropic.com
-lib/storage.js         # chrome.storage helpers + free quota
-lib/billing.js         # ExtPay wrapper (plan refresh, checkout, login)
-lib/config.js          # EXTPAY_EXTENSION_ID + BILLING_ENABLED flag
-lib/ExtPay.js          # vendored IIFE bundle (used as content script)
-lib/extpay.module.js   # same bundle re-exported as an ES module
-icons/                 # toolbar icons + build script
-```
+- `Cmd/Ctrl+Shift+Y` — open the popup
+- `Cmd/Ctrl+Shift+U` — triage the current window now
+- `Cmd/Ctrl+Shift+K` — open the popup with the global search focused
 
-## Free tier limits
+## Pricing
 
-- 5 triages per week (resets Monday UTC)
-- 10 tabs per triage
+- **Free** — 5 triages per week, 10 tabs per triage.
+- **Lifetime — $9.99 one-time** — unlimited triages, no tab cap, Notion export.
 
-Lifetime (one-time purchase) lifts both limits, adds deep mode (sends page text, not just titles), and ships Notion export.
+The LLM cost is separate and goes to whichever provider's key you pasted (or zero if you use a `:free` model on OpenRouter).
 
 ## Privacy
 
-- The API key is stored in this browser only (`chrome.storage.local`).
-- Tab titles + URLs go to Anthropic on triage. Nothing else leaves your machine.
-- No analytics, telemetry, or third-party servers.
+- API keys, settings, saved sessions, and the triage cache live only in `chrome.storage.local` on your device.
+- When you trigger a triage, the **titles and URLs** of the selected tabs are sent directly from your browser to the LLM provider you configured. Nothing else is sent. No page content is read.
+- Notion export and Chrome sync are opt-in; the data only leaves your device when you turn them on or click the export button.
+- We don't run any servers, don't collect telemetry, and don't have analytics.
+
+Full policy: [privacy.html](https://shpwrck.github.io/Tab-Triage-AI/privacy.html).
+
+## Support
+
+Bug reports and feature requests: [jankoszy@gmail.com](mailto:jankoszy@gmail.com).

@@ -629,7 +629,7 @@ async function onTriageNow() {
         label: g.label,
         emoji: g.emoji,
         summary: g.summary,
-        tabs: groupTabs.map(t => ({ title: t.title, url: t.url, favIconUrl: t.favIconUrl, id: t.id })),
+        tabs: groupTabs.map(t => ({ id: t.id, windowId: t.windowId, title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
       };
     });
     await applyAllAsTabGroups({ groups });
