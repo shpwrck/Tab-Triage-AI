@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tab Triage AI</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <h1>Tab Triage</h1>
+      </div>
+      <div class="header-actions">
+        <span id="quota" class="quota"></span>
+        <button id="open-options" class="ghost small" title="Settings">Settings</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="search">
+        <input id="search" type="search" placeholder="Search tabs and sessions…" autocomplete="off" spellcheck="false" />
+      </div>
+
+      <section id="setup" class="hidden card warn">
+        <p><strong>Add your Anthropic API key to get started.</strong></p>
+        <p class="muted">Your key stays on this device. We call api.anthropic.com directly — no server in the middle.</p>
+        <button id="setup-cta" class="primary">Open Settings</button>
+      </section>
+
+      <section id="picker">
+        <div class="picker-head">
+          <label class="checkbox">
+            <input type="checkbox" id="select-all" checked />
+            <span>Tabs in this window</span>
+          </label>
+          <span id="tab-count" class="muted"></span>
+        </div>
+        <ul id="tab-list" class="tab-list"></ul>
+      </section>
+
+      <section id="result" class="hidden">
+        <div class="result-head">
+          <h2>Suggested groups</h2>
+          <div class="result-actions">
+            <button id="apply-all" class="primary" title="Apply every group as a Chrome tab group">Organize window</button>
+            <button id="save-session" class="ghost">Save session</button>
+            <button id="export-md" class="ghost">Copy as Markdown</button>
+            <button id="export-notion" class="ghost" title="Send to Notion (lifetime)">Send to Notion</button>
+            <button id="back" class="ghost">← Back</button>
+          </div>
+        </div>
+        <div id="groups"></div>
+      </section>
+
+      <section id="search-results" class="hidden">
+        <h3 class="search-section-title">Open tabs <span id="search-tabs-count" class="muted"></span></h3>
+        <ul id="search-tab-list" class="search-list"></ul>
+        <h3 class="search-section-title">Saved sessions <span id="search-sessions-count" class="muted"></span></h3>
+        <ul id="search-session-list" class="search-list"></ul>
+        <p id="search-empty" class="muted hidden" style="padding: 8px 4px;">No matches.</p>
+      </section>
+
+      <section id="sessions" class="hidden">
+        <div class="result-head">
+          <h2>Saved sessions</h2>
+          <button id="sessions-back" class="ghost">← Back</button>
+        </div>
+        <ul id="session-list" class="session-list"></ul>
+      </section>
+
+      <div id="error" class="error hidden"></div>
+    </main>
+
+    <footer>
+      <button id="show-sessions" class="ghost small">Saved sessions</button>
+      <button id="triage" class="primary">Triage tabs</button>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

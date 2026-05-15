@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>New tab — Tab Triage</title>
+    <link rel="stylesheet" href="newtab.css" />
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <div class="brand">
+          <h1>Tab Triage</h1>
+        </div>
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-value" id="stat-open">—</span>
+            <span class="stat-label">tabs open</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="stat-stale">—</span>
+            <span class="stat-label" id="stat-stale-label">stale</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="stat-dupes">—</span>
+            <span class="stat-label">duplicates</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="stat-sessions">—</span>
+            <span class="stat-label">saved sessions</span>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <button id="triage-now" class="primary">Triage now</button>
+          <button id="open-settings" class="ghost">Settings</button>
+        </div>
+        <p id="hero-status" class="status muted"></p>
+      </header>
+
+      <section class="card" id="latest-card">
+        <div class="card-head">
+          <h2>Latest triage</h2>
+          <span class="muted" id="latest-meta"></span>
+        </div>
+        <div id="latest-body">
+          <div class="empty">
+            <p>No triage on file yet.</p>
+            <p class="muted">Run one from the popup, enable auto-triage in Settings, or click "Triage now" above.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="stale-card">
+        <div class="card-head">
+          <div>
+            <h2>Stale tabs</h2>
+            <p class="muted" id="stale-help" style="margin: 4px 0 0;">Tabs you haven't activated in a while.</p>
+          </div>
+          <span class="muted" id="stale-count"></span>
+        </div>
+        <ul id="stale-list" class="stale-list"></ul>
+        <div id="stale-empty" class="empty hidden">
+          <p class="muted">No stale tabs right now — you're on top of things.</p>
+        </div>
+        <div class="stale-footer hidden" id="stale-footer">
+          <button id="archive-all-stale" class="primary">Archive all</button>
+          <button id="close-all-stale" class="danger-subtle">Close all</button>
+        </div>
+      </section>
+
+      <section class="card" id="dupes-card">
+        <div class="card-head">
+          <div>
+            <h2>Duplicate tabs</h2>
+            <p class="muted" id="dupes-help" style="margin: 4px 0 0;">Tabs open to the same URL. Closing duplicates keeps the most recently used copy of each.</p>
+          </div>
+          <span class="muted" id="dupes-count"></span>
+        </div>
+        <ul id="dupes-list" class="dupes-list"></ul>
+        <div id="dupes-empty" class="empty hidden">
+          <p class="muted">No duplicates — every open URL is unique.</p>
+        </div>
+        <div class="dupes-footer hidden" id="dupes-footer">
+          <button id="close-all-dupes" class="primary">Close all duplicates</button>
+        </div>
+      </section>
+
+      <section class="card" id="sessions-card">
+        <div class="card-head">
+          <h2>Saved sessions</h2>
+          <span class="muted" id="sessions-count"></span>
+        </div>
+        <ul id="session-list" class="session-list"></ul>
+        <div id="sessions-empty" class="empty hidden">
+          <p class="muted">No saved sessions yet. Archive a group from the popup to keep it for later.</p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="newtab.js"></script>
+  </body>
+</html>

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tab Triage AI — Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="brand">
+          <h1>Tab Triage AI</h1>
+        </div>
+        <p class="muted">Group your open tabs by intent and save resumable research sessions.</p>
+      </header>
+
+      <section class="card">
+        <h2>LLM provider</h2>
+        <p class="muted">
+          Tab Triage works with any provider you bring a key for. Your key stays on this device and is sent
+          directly to the provider's API — no proxy in between.
+        </p>
+
+        <label class="field" style="margin-bottom:12px;">
+          <span class="field-label">Provider</span>
+          <select id="llm-provider"></select>
+          <span class="field-hint" id="llm-key-help"></span>
+        </label>
+
+        <label class="field" style="margin-bottom:12px;">
+          <span class="field-label">API key</span>
+          <div class="row" style="margin-bottom:0;">
+            <input id="api-key" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false" />
+            <button id="toggle-visibility" class="ghost" title="Show / hide">Show</button>
+          </div>
+        </label>
+
+        <label class="field" style="margin-bottom:12px;">
+          <span class="field-label">Model</span>
+          <input id="llm-model" type="text" autocomplete="off" spellcheck="false" />
+          <span class="field-hint">Defaults to a cheap/fast model for the provider. Override if you want.</span>
+        </label>
+
+        <label class="field hidden" id="llm-baseurl-field" style="margin-bottom:12px;">
+          <span class="field-label">Base URL (optional)</span>
+          <input id="llm-baseurl" type="text" placeholder="https://openrouter.ai/api/v1" autocomplete="off" spellcheck="false" />
+          <span class="field-hint">For OpenAI-compatible servers (OpenRouter, Groq, Together, Ollama, LM Studio). Leave blank for OpenAI proper.</span>
+        </label>
+
+        <label class="field" style="margin-bottom:12px;">
+          <span class="field-label">Custom grouping rules (optional)</span>
+          <textarea id="llm-instructions" rows="3" placeholder="e.g. Always keep work email separate from personal. Group dev docs under a single 'Docs' label." spellcheck="false"></textarea>
+          <span class="field-hint">Free-form preferences appended to every triage prompt. Keep it short; the model has to obey the standard label-length and JSON-output rules first.</span>
+        </label>
+
+        <div class="actions">
+          <button id="save" class="primary">Save</button>
+          <button id="test" class="ghost">Test connection</button>
+          <span id="status" class="status"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Plan</h2>
+        <p id="plan-status" class="muted">Loading plan…</p>
+        <p>
+          <strong>Free:</strong> 5 triages per week, up to 10 tabs per triage.<br />
+          <strong id="lifetime-headline">Lifetime · one-time payment:</strong> unlimited triages, no tab cap, deep mode, Notion export. No subscription, no renewals — buy once, keep forever.
+        </p>
+        <div class="actions" id="plan-actions"></div>
+        <p id="waitlist-wrap" class="muted hidden" style="margin-top:12px;">
+          Lifetime checkout isn't live yet. Drop your email to lock in the launch discount.
+        </p>
+        <div class="row hidden" id="waitlist-row">
+          <input id="waitlist-email" type="email" placeholder="you@example.com" />
+          <button id="waitlist" class="ghost">Join waitlist</button>
+        </div>
+        <p id="waitlist-status" class="status"></p>
+      </section>
+
+      <section class="card">
+        <h2>Toolbar badge</h2>
+        <p class="muted">
+          Shows a count on the extension icon for how many tabs you haven't touched in a while —
+          a glanceable signal that there's something to triage. No Claude calls, updates live.
+        </p>
+        <label class="checkbox-row">
+          <input id="badge-enabled" type="checkbox" />
+          <span><strong>Show stale-tab count on the icon</strong></span>
+        </label>
+        <div id="badge-config" class="hidden" style="margin-top:8px;">
+          <label class="field">
+            <span class="field-label">Stale threshold</span>
+            <select id="badge-threshold">
+              <option value="1">1 hour</option>
+              <option value="4">4 hours</option>
+              <option value="12">12 hours</option>
+              <option value="24" selected>1 day</option>
+              <option value="72">3 days</option>
+              <option value="168">1 week</option>
+            </select>
+            <span class="field-hint">Tabs not activated in this long count toward the badge.</span>
+          </label>
+          <p id="badge-status" class="status" style="margin-top:8px;"></p>
+        </div>
+
+        <label class="checkbox-row" style="margin-top:14px;">
+          <input id="sleep-enabled" type="checkbox" />
+          <span>
+            <strong>Also auto-sleep stale tabs to free memory</strong>
+            <span class="field-hint" style="display:block; margin-top:2px;">Calls chrome.tabs.discard() at the stale threshold. Tabs stay in the tab strip and reload when clicked. Pinned, active, and audible tabs are excluded.</span>
+          </span>
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>Auto-triage</h2>
+        <p class="muted">
+          When you open new tabs, Tab Triage can quietly re-cluster the tabs in that window into native Chrome
+          tab groups. This may move a tab into a different group if the LLM thinks it fits better — your
+          manual groupings are not preserved. No tabs are ever closed. Pinned tabs are left alone.
+        </p>
+        <label class="checkbox-row">
+          <input id="auto-enabled" type="checkbox" />
+          <span><strong>Enable auto-triage</strong></span>
+        </label>
+        <div id="auto-config" class="hidden" style="margin-top:8px;">
+          <div class="row">
+            <label class="field">
+              <span class="field-label">Debounce</span>
+              <select id="auto-debounce">
+                <option value="5">5 seconds</option>
+                <option value="10" selected>10 seconds</option>
+                <option value="20">20 seconds</option>
+                <option value="45">45 seconds</option>
+              </select>
+              <span class="field-hint">Wait this long after your last new tab before firing.</span>
+            </label>
+            <label class="field">
+              <span class="field-label">Throttle</span>
+              <select id="auto-throttle">
+                <option value="60">1 minute</option>
+                <option value="90" selected>90 seconds</option>
+                <option value="300">5 minutes</option>
+                <option value="900">15 minutes</option>
+              </select>
+              <span class="field-hint">Minimum gap between runs in the same window.</span>
+            </label>
+          </div>
+          <div class="row">
+            <label class="field">
+              <span class="field-label">Minimum tabs</span>
+              <select id="auto-min-tabs">
+                <option value="4">4 tabs</option>
+                <option value="6" selected>6 tabs</option>
+                <option value="10">10 tabs</option>
+                <option value="15">15 tabs</option>
+              </select>
+              <span class="field-hint">Don't bother re-clustering a near-empty window.</span>
+            </label>
+          </div>
+          <label class="checkbox-row">
+            <input id="auto-notify" type="checkbox" checked />
+            <span>Show a notification when it runs</span>
+          </label>
+          <div class="actions" style="margin-top:8px;">
+            <button id="pause-1h" class="ghost">Pause for 1 hour</button>
+            <button id="pause-til-tomorrow" class="ghost">Pause until tomorrow</button>
+            <button id="resume" class="ghost hidden">Resume</button>
+            <span id="auto-status" class="status"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Notion export</h2>
+        <p class="muted">
+          Send saved sessions and triage results straight into a Notion page. One-time setup:
+        </p>
+        <ol class="muted" style="padding-left:20px; margin: 0 0 12px;">
+          <li>Create an internal integration at <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener">notion.so/my-integrations</a> and copy its token (starts with <code>ntn_</code> or <code>secret_</code>).</li>
+          <li>Open the Notion page you want exports to live under. Click the <strong>⋯</strong> menu → <strong>Connections</strong> → invite your integration.</li>
+          <li>Paste the token and the page URL below.</li>
+        </ol>
+
+        <label class="field" style="margin-bottom:12px;">
+          <span class="field-label">Integration token</span>
+          <div class="row" style="margin-bottom:0;">
+            <input id="notion-token" type="password" placeholder="ntn_..." autocomplete="off" spellcheck="false" />
+            <button id="notion-toggle" class="ghost" title="Show / hide">Show</button>
+          </div>
+        </label>
+
+        <label class="field" style="margin-bottom:12px;">
+          <span class="field-label">Parent page (URL or ID)</span>
+          <input id="notion-parent" type="text" placeholder="https://www.notion.so/My-Workspace/Tab-Triage-..." autocomplete="off" spellcheck="false" />
+          <span class="field-hint">Each export becomes a child page of this one.</span>
+        </label>
+
+        <div class="actions">
+          <button id="notion-save" class="primary">Save</button>
+          <button id="notion-test" class="ghost">Test connection</button>
+          <span id="notion-status" class="status"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Sync</h2>
+        <p class="muted">
+          When enabled, your saved sessions are mirrored to Chrome's built-in sync (the same channel that
+          syncs bookmarks and history). They'll appear on every browser you're signed into with this Google
+          account. No data passes through any server we run.
+        </p>
+        <label class="checkbox-row">
+          <input id="sync-enabled" type="checkbox" />
+          <span><strong>Sync saved sessions across my Chrome profile</strong></span>
+        </label>
+        <p id="sync-status" class="status"></p>
+        <p class="muted" style="margin-top:8px; font-size:12px;">
+          Sessions larger than ~8 KB (rare; a 50-tab session is around 5 KB) stay local-only.
+          Disabling sync also clears Tab Triage's keys from the sync silo.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Privacy</h2>
+        <ul class="muted">
+          <li>Your API key is stored only in this browser's local storage.</li>
+          <li>Tab titles and URLs are sent to Anthropic when you click Triage. Nothing else leaves your machine.</li>
+          <li>No analytics, no tracking pixels, no third-party servers.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
