@@ -24,7 +24,8 @@ lib/{actions,storage,    cross-feature helpers (chrome.tabs ops, storage, billin
      manual_triage,
      sleep_stale,
      session_sync,
-     triage_cache}.js
+     triage_cache,
+     fuzzy}.js
 lib/config.js            EXTPAY_EXTENSION_ID, BILLING_ENABLED, LIFETIME_PRICE_USD
 lib/ExtPay.js            vendored ExtensionPay (IIFE, used as content script)
 lib/extpay.module.js     same bundle with ESM export for popup/SW imports

@@ -20,6 +20,7 @@ import {
 } from "../lib/actions.js";
 import { saveTriageCache } from "../lib/triage_cache.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
+import { fuzzyScoreMulti } from "../lib/fuzzy.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -686,19 +687,20 @@ async function runSearch(q) {
   els.sessions.classList.add("hidden");
   els.searchResults.classList.remove("hidden");
 
-  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-
-  // Tabs: across every window.
+  // Tabs: across every window. Fuzzy-scored against "title url".
   const allTabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
   const tabHits = allTabs
     .map(t => ({
       tab: t,
-      hay: `${t.title ?? ""} ${t.url ?? ""}`.toLowerCase(),
+      score: fuzzyScoreMulti(query, `${t.title ?? ""} ${t.url ?? ""}`),
     }))
-    .filter(({ hay }) => tokens.every(tok => hay.includes(tok)))
-    .map(({ tab }) => tab)
-    .sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))
-    .slice(0, 30);
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return (b.tab.lastAccessed ?? 0) - (a.tab.lastAccessed ?? 0);
+    })
+    .slice(0, 30)
+    .map(({ tab }) => tab);
 
   // Sessions: match against session title, group labels, notes, and tab titles.
   const sessions = await listSessions();
@@ -708,14 +710,13 @@ async function runSearch(q) {
         s.title,
         s.notes ?? "",
         ...s.groups.flatMap(g => [g.label, ...(g.summary ?? []), ...g.tabs.map(t => t.title)]),
-      ]
-        .join(" ")
-        .toLowerCase();
-      return { session: s, hay };
+      ].join(" ");
+      return { session: s, score: fuzzyScoreMulti(query, hay) };
     })
-    .filter(({ hay }) => tokens.every(tok => hay.includes(tok)))
-    .map(({ session }) => session)
-    .slice(0, 10);
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10)
+    .map(({ session }) => session);
 
   renderSearchTabs(tabHits);
   renderSearchSessions(sessionHits);
