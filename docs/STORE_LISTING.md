@@ -74,7 +74,7 @@ KEYBOARD SHORTCUTS
 
 ---
 
-Built by an independent developer. Bug reports and feature requests: hello@tabtriage.ai
+Built by an independent developer. Bug reports and feature requests: jankoszy@gmail.com
 ```
 
 ## Category

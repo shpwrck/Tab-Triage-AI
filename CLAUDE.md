@@ -81,12 +81,11 @@ Done:
 - ExtensionPay billing flag is live
 - Privacy policy drafted: `docs/PRIVACY.md` + `docs/privacy.html`
 - Store listing copy + per-permission justifications drafted: `docs/STORE_LISTING.md`
-- `manifest.json` has `description`, `homepage_url`, `author`
+- `manifest.json` has `description`, `homepage_url` (= GitHub repo URL), `author`
 - Packaging script: `scripts/package.sh` (whitelist-based, validates manifest references)
+- Support email locked in as `jankoszy@gmail.com` across `manifest.json`, `docs/PRIVACY.md`, `docs/privacy.html`, `docs/STORE_LISTING.md`, `options/options.js` waitlist string
 
 Pending (user-side):
-- Pick a real support email (replace `hello@tabtriage.ai` placeholder in privacy + listing)
-- Register a real domain (replace `tabtriage.ai` placeholder in `manifest.json` `homepage_url` + privacy contact line)
 - Host `docs/privacy.html` somewhere public over HTTPS (Vercel / Cloudflare Pages / GitHub Pages)
 - Register Chrome Web Store developer account ($5 one-time)
 - Capture screenshots per the shot list in `docs/STORE_LISTING.md`

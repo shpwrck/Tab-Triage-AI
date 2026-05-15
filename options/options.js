@@ -368,7 +368,7 @@ async function onWaitlist() {
     return;
   }
   await chrome.storage.local.set({ tt_waitlist_email: email });
-  els.waitlistStatus.textContent = "Saved locally. Email hello@tabtriage.ai to lock in the launch discount.";
+  els.waitlistStatus.textContent = "Saved locally. Email jankoszy@gmail.com to lock in the launch discount.";
   els.waitlistStatus.className = "status ok";
 }
 

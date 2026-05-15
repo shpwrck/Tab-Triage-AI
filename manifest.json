@@ -3,7 +3,7 @@
   "name": "Tab Triage AI",
   "version": "0.1.0",
   "description": "Cluster open tabs by intent, summarize each cluster, and clean up stale & duplicate tabs. Bring your own Claude, GPT, or Gemini key.",
-  "homepage_url": "https://tabtriage.ai",
+  "homepage_url": "https://github.com/shpwrck/Tab-Triage-AI",
   "author": "Tab Triage AI",
   "permissions": [
     "tabs",

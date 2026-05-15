@@ -114,4 +114,4 @@ If we change this policy, the new version will be posted at the same URL with an
 
 ## Contact
 
-Questions? Reach out to **hello@tabtriage.ai** (update this with your real support email before publishing).
+Questions? Reach out to **jankoszy@gmail.com**.
