@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="index, follow" />
+    <title>Privacy Policy — Tab Triage AI</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --accent: #dc2626;
+        --accent-2: #0d9488;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.65;
+        font-size: 16px;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 56px 24px 96px;
+      }
+      h1 { font-size: 32px; margin: 0 0 8px; letter-spacing: -0.5px; }
+      h2 { font-size: 20px; margin: 36px 0 8px; letter-spacing: -0.2px; }
+      h3 { font-size: 16px; margin: 24px 0 4px; }
+      p, ul, ol, table { margin: 0 0 14px; }
+      ul, ol { padding-left: 22px; }
+      a { color: var(--accent-2); }
+      a:hover { color: var(--accent); }
+      table { border-collapse: collapse; width: 100%; font-size: 14px; }
+      th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+      th { font-weight: 600; background: #f8fafc; }
+      code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+      .effective { color: var(--muted); margin-bottom: 24px; }
+      .short {
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 18px 22px;
+        margin-bottom: 28px;
+      }
+      .short ul { margin-bottom: 0; }
+      footer { color: var(--muted); font-size: 13px; margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Privacy Policy — Tab Triage AI</h1>
+      <p class="effective"><strong>Effective date:</strong> <em>Update before publishing.</em></p>
+
+      <p>Tab Triage AI (the &ldquo;extension&rdquo;) is a Chrome extension that clusters your open tabs by intent, summarizes each cluster, and surfaces stale and duplicate tabs for cleanup. It is published by <strong>Tab Triage AI</strong> (&ldquo;we&rdquo;). This policy explains what data the extension handles, where it goes, and what stays on your device.</p>
+
+      <div class="short">
+        <h2 style="margin-top: 0;">Short version</h2>
+        <ul>
+          <li>The extension does <strong>not</strong> operate any backend or proxy. We do not run servers that handle your data.</li>
+          <li>It does <strong>not</strong> collect analytics, telemetry, error reports, or any usage data of any kind.</li>
+          <li>Your LLM provider API key, your settings, your saved sessions, your Notion integration token, and the cache of recent triage results live in your own browser&rsquo;s local storage.</li>
+          <li>When you actively trigger a triage, the <strong>titles and URLs</strong> of the tabs you select are sent directly from your browser to the LLM provider you configured (Anthropic, OpenAI, Google, or an OpenAI-compatible endpoint of your choice). Nothing else is sent.</li>
+          <li>When you actively click &ldquo;Send to Notion,&rdquo; the contents of that session or triage are sent directly from your browser to Notion using the integration token you configured.</li>
+          <li>When you opt in to cross-device sync, your saved sessions are mirrored through Chrome&rsquo;s built-in <code>chrome.storage.sync</code> channel. We never see this data.</li>
+          <li>When you purchase a lifetime license, payment is processed by ExtensionPay and Stripe; we receive only the confirmation that you paid.</li>
+        </ul>
+      </div>
+
+      <h2>What the extension stores on your device</h2>
+      <p>The following live in <code>chrome.storage.local</code> on this device:</p>
+      <table>
+        <thead><tr><th>Data</th><th>Why it exists</th></tr></thead>
+        <tbody>
+          <tr><td>LLM provider, model, API key, optional base URL, optional custom grouping rules</td><td>Required to run triages</td></tr>
+          <tr><td>Notion integration token + parent page ID (only if you set them up)</td><td>Required for &ldquo;Send to Notion&rdquo;</td></tr>
+          <tr><td>Saved sessions (titles, URLs, group labels, summaries, optional notes)</td><td>The session list you can restore from</td></tr>
+          <tr><td>Most recent triage cache (groups + tab titles/URLs + timestamp)</td><td>Powers the new-tab dashboard without re-querying the LLM</td></tr>
+          <tr><td>Settings: auto-triage thresholds, badge config, sleep config, sync toggle</td><td>Your preferences</td></tr>
+          <tr><td>Free-tier quota counter (current week&rsquo;s triage count)</td><td>Enforces the 5-triages-per-week free limit</td></tr>
+        </tbody>
+      </table>
+      <p>You can clear all of this by uninstalling the extension or by clicking &ldquo;Clear all data&rdquo; in <code>chrome://extensions</code> &rarr; Tab Triage AI &rarr; &ldquo;Site data.&rdquo;</p>
+
+      <h2>What leaves your device, when, and to whom</h2>
+
+      <h3>LLM provider (Anthropic, OpenAI / OpenAI-compatible, Google)</h3>
+      <p><strong>Triggered by:</strong> clicking &ldquo;Triage tabs,&rdquo; clicking &ldquo;Triage now,&rdquo; or auto-triage firing in the background while enabled.</p>
+      <p><strong>Sent:</strong> a JSON array containing the <code>title</code>, <code>url</code>, and <code>id</code> of each selected tab; plus your saved system prompt (which may include your custom grouping rules, if you set any). Tab content (page text) is <strong>not</strong> read or sent &mdash; only titles and URLs.</p>
+      <p><strong>Destination:</strong> the host you chose. Defaults are <code>api.anthropic.com</code>, <code>api.openai.com</code>, or <code>generativelanguage.googleapis.com</code>; or whatever Base URL you supply for an OpenAI-compatible provider.</p>
+      <p><strong>Authentication:</strong> the API key you pasted into Settings, sent in the standard provider header. We do not route this through any server we operate.</p>
+
+      <h3>Notion (only if you configured it)</h3>
+      <p><strong>Triggered by:</strong> clicking &ldquo;Send to Notion&rdquo; on a triage result, a single group, or a saved session.</p>
+      <p><strong>Sent:</strong> the session/group&rsquo;s title, group labels, summary bullets, tab titles, tab URLs, optional notes, and a small metadata line (date, tab count, group count, provider name).</p>
+      <p><strong>Destination:</strong> <code>api.notion.com</code>. Authentication: the Notion integration token you pasted into Settings.</p>
+
+      <h3>ExtensionPay (payments only)</h3>
+      <p><strong>Triggered by:</strong> clicking &ldquo;Buy lifetime access.&rdquo;</p>
+      <p><strong>Sent:</strong> the standard ExtensionPay flow, which processes the purchase via Stripe. We receive the boolean fact that your purchase succeeded, and a randomly generated user identifier so the extension can recognize you on other devices. We do not see, store, or receive your card number, billing address, or any other payment details &mdash; those stay with Stripe.</p>
+      <p>See <a href="https://extensionpay.com/privacy" target="_blank" rel="noopener">ExtensionPay&rsquo;s privacy policy</a> and <a href="https://stripe.com/privacy" target="_blank" rel="noopener">Stripe&rsquo;s privacy policy</a>.</p>
+
+      <h3>Chrome sync (only if you opt in)</h3>
+      <p><strong>Triggered by:</strong> enabling &ldquo;Sync saved sessions&rdquo; in Settings.</p>
+      <p><strong>Sent:</strong> each saved session as a separate item to <code>chrome.storage.sync</code>. This is Google&rsquo;s sync infrastructure &mdash; the same channel that syncs your bookmarks, history, and other extension preferences. We have no access to this data, no server in the path. Disabling sync clears the synced items.</p>
+
+      <h2>Permissions and why they are requested</h2>
+      <table>
+        <thead><tr><th>Permission</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>tabs</code></td><td>Read tab titles, URLs, and last-accessed timestamps; switch tabs you select; close tabs you ask to be closed</td></tr>
+          <tr><td><code>tabGroups</code></td><td>Create native Chrome tab groups with the AI&rsquo;s labels</td></tr>
+          <tr><td><code>storage</code></td><td>Persist your settings, API keys, saved sessions, and cache locally</td></tr>
+          <tr><td><code>windows</code></td><td>Open a new window when you restore a session into one; focus windows when switching tabs</td></tr>
+          <tr><td><code>alarms</code></td><td>Debounce auto-triage runs and refresh the toolbar badge on a schedule</td></tr>
+          <tr><td><code>notifications</code></td><td>Show &ldquo;Grouped N tabs&rdquo; notifications after an auto-triage run</td></tr>
+          <tr><td>Host permissions for LLM/Notion/ExtensionPay endpoints</td><td>Direct browser-to-provider API calls; no proxy in between</td></tr>
+          <tr><td><code>optional_host_permissions: &lt;all_urls&gt;</code> + <code>scripting</code></td><td>Reserved for a future opt-in &ldquo;deep mode&rdquo; that would read page text. Currently unused. Granted only on explicit user request.</td></tr>
+          <tr><td>Content script on <code>extensionpay.com</code></td><td>Detect successful payment so your lifetime status activates immediately</td></tr>
+        </tbody>
+      </table>
+
+      <h2>What we do not do</h2>
+      <ul>
+        <li>We do not sell, share, or transfer any user data to anyone.</li>
+        <li>We do not use any data for advertising, profiling, or any purpose other than performing the function you triggered.</li>
+        <li>We do not collect analytics, error reports, crash logs, usage metrics, or any telemetry.</li>
+        <li>We do not run servers, databases, queues, or any backend that touches your data.</li>
+        <li>We do not contact you unless you email us first.</li>
+      </ul>
+
+      <h2>Children</h2>
+      <p>The extension is not directed at children under 13 and we do not knowingly collect data from them.</p>
+
+      <h2>Your rights</h2>
+      <p>Because we don&rsquo;t operate any servers that hold your data, there is nothing for us to delete on your behalf. To wipe everything the extension has stored:</p>
+      <ol>
+        <li>Open <code>chrome://extensions</code>, find Tab Triage AI, click <strong>Remove</strong>.</li>
+        <li>If you enabled cross-device sync, Chrome will remove the synced items when you disable sync or remove the extension on every signed-in Chrome.</li>
+      </ol>
+
+      <h2>Changes to this policy</h2>
+      <p>If we change this policy, the new version will be posted at the same URL with an updated effective date.</p>
+
+      <h2>Contact</h2>
+      <p>Questions? Reach out to <strong>hello@tabtriage.ai</strong> (update this with your real support email before publishing).</p>
+
+      <footer>
+        Tab Triage AI &middot; Chrome Web Store
+      </footer>
+    </main>
+  </body>
+</html>
