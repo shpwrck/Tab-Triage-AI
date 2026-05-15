@@ -115,6 +115,7 @@ async function loadCurrentWindowTabs() {
       const grp = grouped ? groupMap.get(t.groupId) : null;
       return {
         id: t.id,
+        windowId: t.windowId,
         title: t.title || t.url,
         url: t.url,
         favIconUrl: t.favIconUrl,
@@ -241,7 +242,7 @@ async function onTriage() {
         tabs: (g.tab_ids ?? [])
           .map(id => tabsById.get(id))
           .filter(Boolean)
-          .map(t => ({ id: t.id, title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
+          .map(t => ({ id: t.id, windowId: t.windowId, title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
         status: null,
       })),
     };
