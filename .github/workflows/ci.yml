@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+  pull_request:
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate manifest.json
+        run: python3 -c "import json; json.load(open('manifest.json'))"
+
+      - name: Syntax-check JS files
+        run: |
+          set -e
+          fail=0
+          while IFS= read -r f; do
+            node --check "$f" || fail=1
+          done < <(find background popup options newtab lib -name "*.js" -type f | sort)
+          exit $fail
+
+      - name: Dry-run package.sh
+        run: ./scripts/package.sh --check
