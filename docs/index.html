@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="index, follow" />
+    <title>Tab Triage AI</title>
+    <meta name="description" content="A Chrome extension that clusters your open tabs by intent, summarizes each cluster, and helps you clean up stale and duplicate tabs. Bring your own Claude, GPT, or Gemini key." />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --accent: #dc2626;
+        --accent-2: #0d9488;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.65;
+        font-size: 16px;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 64px 24px 96px;
+      }
+      h1 { font-size: 36px; margin: 0 0 12px; letter-spacing: -0.6px; }
+      h2 { font-size: 20px; margin: 36px 0 8px; letter-spacing: -0.2px; }
+      .tagline { color: var(--muted); font-size: 18px; margin: 0 0 32px; }
+      p, ul { margin: 0 0 14px; }
+      ul { padding-left: 22px; }
+      a { color: var(--accent-2); }
+      a:hover { color: var(--accent); }
+      .links { display: flex; flex-wrap: wrap; gap: 12px; margin: 28px 0; }
+      .links a {
+        display: inline-block;
+        padding: 10px 16px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--text);
+        font-weight: 500;
+      }
+      .links a:hover { border-color: var(--accent-2); color: var(--accent-2); }
+      footer { color: var(--muted); font-size: 13px; margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--border); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Tab Triage AI</h1>
+      <p class="tagline">Cluster your open tabs by intent. Summarize. Clean up stale and duplicate tabs.</p>
+
+      <p>Tab Triage AI is a Chrome extension that uses your own LLM API key (Claude, GPT, or Gemini) to group the tabs in your current window by what you are actually trying to do — research, shopping, planning, reading, debugging — and summarize each group in three bullets. It runs entirely in your browser. No backend. No analytics. No telemetry.</p>
+
+      <h2>What it does</h2>
+      <ul>
+        <li>One-click triage of every open tab into native Chrome tab groups with AI-written labels and summaries.</li>
+        <li>Optional auto-triage in the background as you browse.</li>
+        <li>Stale-tab badge and one-click "sleep stale tabs."</li>
+        <li>Duplicate detection and dedup.</li>
+        <li>Saved sessions with restore (here or new window), Markdown export, and Notion export.</li>
+        <li>Global fuzzy search across open tabs and saved sessions.</li>
+      </ul>
+
+      <h2>Privacy</h2>
+      <p>Tab titles and URLs from the tabs you select are sent directly from your browser to the LLM provider you configured. Your API key, settings, and saved sessions live in your browser's local storage. Nothing is routed through a server we operate, because we don't operate one.</p>
+      <p>Read the full <a href="privacy.html">privacy policy</a>.</p>
+
+      <h2>Pricing</h2>
+      <p>Free tier: 5 triages per week, 10 tabs per triage. Lifetime license: $9.99 one-time, unlimited.</p>
+
+      <div class="links">
+        <a href="privacy.html">Privacy policy</a>
+      </div>
+
+      <footer>
+        Tab Triage AI &middot; Independent developer &middot; jankoszy@gmail.com
+      </footer>
+    </main>
+  </body>
+</html>

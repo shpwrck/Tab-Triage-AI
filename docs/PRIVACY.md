@@ -1,6 +1,6 @@
 # Privacy Policy — Tab Triage AI
 
-**Effective date:** _Set this to the day you publish on the Chrome Web Store._
+**Effective date:** 2026-05-15
 
 Tab Triage AI ("the extension") is a Chrome extension that clusters your open tabs by intent, summarizes each cluster, and surfaces stale and duplicate tabs for cleanup. It is published by **Tab Triage AI** ("we"). This policy explains what data the extension handles, where it goes, and what stays on your device.
 

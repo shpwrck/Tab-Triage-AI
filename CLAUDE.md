@@ -86,13 +86,18 @@ Done:
 - Support email locked in as `jankoszy@gmail.com` across `manifest.json`, `docs/PRIVACY.md`, `docs/privacy.html`, `docs/STORE_LISTING.md`, `options/options.js` waitlist string
 
 Pending (user-side):
-- Host `docs/privacy.html` somewhere public over HTTPS (Vercel / Cloudflare Pages / GitHub Pages)
+- Make this repo public and enable GitHub Pages (Settings → Pages → Source: `main` branch, `/docs` folder). Privacy URL will be `https://shpwrck.github.io/Tab-Triage-AI/privacy.html`. Landing at `https://shpwrck.github.io/Tab-Triage-AI/`.
 - Capture screenshots per the shot list in `docs/STORE_LISTING.md`
 - Run `./scripts/package.sh`, upload the zip
 - Submit and answer review questions using the per-permission justifications in `STORE_LISTING.md`
 
 User has:
 - Chrome Web Store developer account
+
+Site files:
+- `docs/index.html` — minimal landing page
+- `docs/privacy.html` — privacy policy (effective 2026-05-15)
+- `docs/.nojekyll` — disable Jekyll processing, serve raw HTML
 
 Not yet built (deferred):
 - Landing page at the domain
