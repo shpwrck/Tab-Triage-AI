@@ -87,10 +87,12 @@ Done:
 
 Pending (user-side):
 - Host `docs/privacy.html` somewhere public over HTTPS (Vercel / Cloudflare Pages / GitHub Pages)
-- Register Chrome Web Store developer account ($5 one-time)
 - Capture screenshots per the shot list in `docs/STORE_LISTING.md`
 - Run `./scripts/package.sh`, upload the zip
 - Submit and answer review questions using the per-permission justifications in `STORE_LISTING.md`
+
+User has:
+- Chrome Web Store developer account
 
 Not yet built (deferred):
 - Landing page at the domain
