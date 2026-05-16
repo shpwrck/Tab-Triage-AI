@@ -96,10 +96,14 @@ Done:
 - Support email locked in as `jankoszy@gmail.com` across `manifest.json`, `docs/PRIVACY.md`, `docs/privacy.html`, `docs/STORE_LISTING.md`, `options/options.js` waitlist string
 
 Pending (user-side):
-- Make this repo public and enable GitHub Pages (Settings → Pages → Source: `main` branch, `/docs` folder). Privacy URL will be `https://shpwrck.github.io/Tab-Triage-AI/privacy.html`. Landing at `https://shpwrck.github.io/Tab-Triage-AI/`.
 - Capture screenshots per the shot list in `docs/STORE_LISTING.md`
+- Set the `$9.99` lifetime price on the ExtensionPay dashboard (slug `tab-triage-ai`)
 - Run `./scripts/package.sh`, upload the zip
 - Submit and answer review questions using the per-permission justifications in `STORE_LISTING.md`
+
+Done (verified 2026-05-16):
+- Repo is public at `https://github.com/shpwrck/Tab-Triage-AI`
+- GitHub Pages is live: privacy at `https://shpwrck.github.io/Tab-Triage-AI/privacy.html`, landing at `https://shpwrck.github.io/Tab-Triage-AI/`
 
 User has:
 - Chrome Web Store developer account
