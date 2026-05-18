@@ -3,7 +3,7 @@ import { readTriageCache, saveTriageCache, clearTriageCache } from "../lib/triag
 import { triageTabs, LLMError } from "../lib/llm/index.js";
 import { applyAllAsTabGroups, restoreSession } from "../lib/actions.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
-import { setTriageRunning } from "../lib/badge.js";
+import { setTriageRunning, formatThresholdLabel } from "../lib/badge.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -93,7 +93,7 @@ async function renderStats() {
     t => typeof t.lastAccessed === "number" && now - t.lastAccessed >= thresholdMs,
   );
   els.statStale.textContent = stale.length;
-  els.statStaleLabel.textContent = `stale (${hours}h+)`;
+  els.statStaleLabel.textContent = `stale (${formatThresholdLabel(hours)})`;
 
   const { totalRedundant } = computeDuplicates(tabs);
   els.statDupes.textContent = totalRedundant;
@@ -186,7 +186,7 @@ async function renderStale() {
     .sort((a, b) => (a.lastAccessed ?? 0) - (b.lastAccessed ?? 0));
 
   state.staleTabs = stale;
-  els.staleHelp.textContent = `Tabs you haven't activated in ${hours}h+. Pinned tabs are excluded.`;
+  els.staleHelp.textContent = `Tabs you haven't activated in ${formatThresholdLabel(hours)}. Pinned tabs are excluded.`;
   els.staleCount.textContent = stale.length === 0 ? "" : `${stale.length} tab${stale.length === 1 ? "" : "s"}`;
 
   if (!stale.length) {
@@ -246,16 +246,17 @@ async function onArchiveAllStale() {
   if (!stale?.length) return;
   const settings = await getSettings();
   const hours = settings.badge?.thresholdHours ?? 24;
+  const label = formatThresholdLabel(hours);
   const session = {
     id: `s_${Date.now()}`,
     createdAt: new Date().toISOString(),
-    title: `Stale tabs (${hours}h+)`,
+    title: `Stale tabs (${label})`,
     groups: [
       {
-        label: `Stale tabs (${hours}h+)`,
+        label: `Stale tabs (${label})`,
         emoji: "",
         summary: [
-          `${stale.length} tab${stale.length === 1 ? "" : "s"} not activated in ${hours}h+`,
+          `${stale.length} tab${stale.length === 1 ? "" : "s"} not activated in ${label}`,
           "Captured from the new-tab dashboard",
           "Restore via Saved sessions to revisit",
         ],
