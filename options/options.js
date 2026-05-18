@@ -540,7 +540,10 @@ async function initDataSection() {
 
 async function onExport() {
   const settings = await getSettings();
-  const json = JSON.stringify(settings, null, 2);
+  // Strip the legacy root-level apiKey (always "" post-migration; would
+  // confuse readers into thinking there are two separate keys).
+  const { apiKey, ...exportable } = settings;
+  const json = JSON.stringify(exportable, null, 2);
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
