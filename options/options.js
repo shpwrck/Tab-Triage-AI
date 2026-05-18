@@ -57,6 +57,7 @@ const els = {
   notionTest: $("#notion-test"),
   notionStatus: $("#notion-status"),
   themeRadios: document.querySelectorAll('input[name="theme"]'),
+  themeHelp: $("#theme-help"),
 };
 
 async function init() {
@@ -65,7 +66,6 @@ async function init() {
 
   const settings = await getSettings();
 
-  initTheme(settings);
   populateProviderOptions();
   setProviderUi(settings.llm.provider);
   els.key.value = settings.llm.apiKey ?? "";
@@ -93,21 +93,32 @@ async function init() {
   els.waitlist.addEventListener("click", onWaitlist);
 
   await renderPlan();
+  await initTheme();
   await initAutoTriage(settings);
   await initBadge(settings);
   await initSync(settings);
   await initNotion(settings);
 }
 
-function initTheme(settings) {
-  const current = settings.display?.theme ?? "system";
+async function initTheme() {
+  // Plan was just refreshed by renderPlan() — re-read so the lifetime
+  // gate reflects the post-refresh value, mirroring initBadge().
+  const fresh = await getSettings();
+  const isLifetime = fresh.plan === "lifetime";
+  const current = fresh.display?.theme ?? "system";
+
+  els.themeHelp.textContent = isLifetime
+    ? "Pick a theme for the settings and new-tab pages."
+    : "Dark mode is a Lifetime feature. Free plan is light only.";
+
   for (const radio of els.themeRadios) {
-    radio.checked = radio.value === current;
+    radio.checked = radio.value === (isLifetime ? current : "light");
+    radio.disabled = !isLifetime && radio.value !== "light";
     radio.addEventListener("change", async () => {
       if (!radio.checked) return;
       const theme = radio.value;
-      applyTheme(theme);
       await saveSettings({ display: { theme } });
+      applyTheme(theme);
     });
   }
 }
