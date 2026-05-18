@@ -5,6 +5,7 @@ import { updateBadge } from "../lib/badge.js";
 import { PROVIDERS, pingProvider, LLMError } from "../lib/llm/index.js";
 import { onSyncEnabledChange } from "../lib/session_sync.js";
 import { pingNotion, extractPageId, NotionError } from "../lib/notion.js";
+import { applyStoredTheme, applyTheme, watchThemeChanges } from "../lib/theme.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -55,11 +56,16 @@ const els = {
   notionSave: $("#notion-save"),
   notionTest: $("#notion-test"),
   notionStatus: $("#notion-status"),
+  themeRadios: document.querySelectorAll('input[name="theme"]'),
 };
 
 async function init() {
+  await applyStoredTheme();
+  watchThemeChanges();
+
   const settings = await getSettings();
 
+  initTheme(settings);
   populateProviderOptions();
   setProviderUi(settings.llm.provider);
   els.key.value = settings.llm.apiKey ?? "";
@@ -91,6 +97,19 @@ async function init() {
   await initBadge(settings);
   await initSync(settings);
   await initNotion(settings);
+}
+
+function initTheme(settings) {
+  const current = settings.display?.theme ?? "system";
+  for (const radio of els.themeRadios) {
+    radio.checked = radio.value === current;
+    radio.addEventListener("change", async () => {
+      if (!radio.checked) return;
+      const theme = radio.value;
+      applyTheme(theme);
+      await saveSettings({ display: { theme } });
+    });
+  }
 }
 
 async function initNotion(settings) {

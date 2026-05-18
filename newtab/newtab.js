@@ -4,6 +4,7 @@ import { triageTabs, LLMError } from "../lib/llm/index.js";
 import { applyAllAsTabGroups, restoreSession } from "../lib/actions.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
 import { setTriageRunning, formatThresholdLabel } from "../lib/badge.js";
+import { applyStoredTheme, watchThemeChanges } from "../lib/theme.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -42,6 +43,8 @@ const els = {
 };
 
 async function init() {
+  await applyStoredTheme();
+  watchThemeChanges();
   els.openSettings.addEventListener("click", () => chrome.runtime.openOptionsPage());
   els.triageNow.addEventListener("click", onTriageNow);
   els.clearHistory.addEventListener("click", onClearHistory);

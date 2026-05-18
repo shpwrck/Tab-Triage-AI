@@ -19,6 +19,47 @@
   --radius: 10px;
 }
 
+body.dark {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-2: #21262d;
+  --border: #30363d;
+  --border-strong: #484f58;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #f87171;
+  --accent-strong: #ef4444;
+  --accent-soft: rgba(248, 113, 113, 0.22);
+  --accent-2: #5eead4;
+  --accent-2-strong: #2dd4bf;
+  --accent-2-soft: rgba(94, 234, 212, 0.22);
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.18);
+}
+@media (prefers-color-scheme: dark) {
+  body:not(.light) {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #21262d;
+    --border: #30363d;
+    --border-strong: #484f58;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #f87171;
+    --accent-strong: #ef4444;
+    --accent-soft: #3a1818;
+    --accent-2: #5eead4;
+    --accent-2-strong: #2dd4bf;
+    --accent-2-soft: #122e2b;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --danger-soft: #3a1818;
+  }
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -28,6 +69,7 @@ body {
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;
+  min-height: 100vh;
 }
 
 main {
@@ -61,7 +103,7 @@ header { margin-bottom: 4px; }
 .row { display: flex; gap: 8px; margin-bottom: 12px; }
 
 textarea {
-  background: #ffffff;
+  background: var(--bg);
   border: 1.5px solid var(--border);
   color: var(--text);
   padding: 10px 12px;
@@ -81,7 +123,7 @@ textarea:focus {
 
 input:not([type="checkbox"]):not([type="radio"]) {
   flex: 1;
-  background: #ffffff;
+  background: var(--bg);
   border: 1.5px solid var(--border);
   color: var(--text);
   padding: 10px 12px;
@@ -106,7 +148,7 @@ input[type="checkbox"] {
   margin: 0;
   border: 1.5px solid var(--border-strong);
   border-radius: 5px;
-  background: #ffffff;
+  background: var(--bg);
   cursor: pointer;
   flex: 0 0 auto;
   display: inline-grid;
@@ -143,7 +185,7 @@ input[type="checkbox"]:checked::after {
 
 button {
   font: inherit;
-  background: #ffffff;
+  background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -193,7 +235,7 @@ code {
   color: var(--muted);
 }
 .field select {
-  background: #ffffff;
+  background: var(--bg);
   border: 1.5px solid var(--border);
   color: var(--text);
   padding: 8px 10px;
