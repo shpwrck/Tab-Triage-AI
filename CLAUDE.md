@@ -36,6 +36,7 @@ scripts/package.sh       whitelist zip builder, verifies manifest references
 
 ## Conventions (please honor these)
 
+- **New features default to Lifetime-gated.** Any new feature added to this extension is a licensed (paid) feature unless the user explicitly says it should be free. Gate it behind the ExtensionPay license check (see `lib/billing.js`) and throw `GateError("Lifetime only", ...)` from precondition guards so the inline button feedback reads correctly. Don't add the feature to the free-tier surface unless asked.
 - **No emojis or decorative icons in the UI.** Plain text labels only. The toolbar PNG icon stays; everything inside the popup / options / new-tab is wordmark-only.
 - **No analytics, no telemetry, no error reporting, no proxy.** Privacy story is load-bearing for the brand. Don't add a fetch to any host the user didn't configure.
 - **Always fast-forward `main` after pushing the feature branch.** Sequence is: commit on `claude/marketplace-product-builder-cT0ip` → push → `git checkout main && git merge --ff-only && git push origin main → git checkout` back. (In this sandbox the harness proxy 503s on main pushes; the user pushes main from their own machine.)

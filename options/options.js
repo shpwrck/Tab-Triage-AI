@@ -68,6 +68,7 @@ const els = {
 async function init() {
   await applyStoredTheme();
   watchThemeChanges();
+  initSectionNav();
 
   const settings = await getSettings();
 
@@ -104,6 +105,29 @@ async function init() {
   await initSync(settings);
   await initNotion(settings);
   await initDataSection();
+}
+
+function initSectionNav() {
+  const links = Array.from(document.querySelectorAll(".page-nav a"));
+  const byTarget = new Map();
+  for (const a of links) {
+    const target = document.querySelector(a.getAttribute("href"));
+    if (target) byTarget.set(target, a);
+  }
+  if (!byTarget.size || !("IntersectionObserver" in window)) return;
+  // The rootMargin trims the viewport so only one section's mid-band
+  // counts as visible at a time — avoids two links highlighting at once.
+  const observer = new IntersectionObserver(
+    entries => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        for (const a of links) a.classList.remove("active");
+        byTarget.get(e.target)?.classList.add("active");
+      }
+    },
+    { rootMargin: "-40% 0px -55% 0px", threshold: 0 },
+  );
+  for (const target of byTarget.keys()) observer.observe(target);
 }
 
 async function initTheme() {

@@ -6,6 +6,18 @@
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
+    <nav class="page-nav" aria-label="Settings sections">
+      <ul>
+        <li><a href="#section-llm">LLM</a></li>
+        <li><a href="#section-appearance">Appearance</a></li>
+        <li><a href="#section-plan">Plan</a></li>
+        <li><a href="#section-badge">Badge</a></li>
+        <li><a href="#section-auto">Auto-triage</a></li>
+        <li><a href="#section-notion">Notion</a></li>
+        <li><a href="#section-sync">Sync</a></li>
+        <li><a href="#section-privacy">Privacy</a></li>
+      </ul>
+    </nav>
     <main>
       <header>
         <div class="brand">
@@ -14,7 +26,7 @@
         <p class="muted">Group your open tabs by intent and save resumable research sessions.</p>
       </header>
 
-      <section class="card">
+      <section class="card" id="section-llm">
         <h2>LLM provider</h2>
         <p class="muted">
           Tab Triage works with any provider you bring a key for. Your key stays on this device and is sent
@@ -85,7 +97,7 @@
         </details>
       </section>
 
-      <section class="card">
+      <section class="card" id="section-appearance">
         <h2>Appearance</h2>
         <p class="muted" id="theme-help">Pick a theme for the settings and new-tab pages.</p>
         <div class="theme-options">
@@ -104,7 +116,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card" id="section-plan">
         <h2>Plan</h2>
         <p id="plan-status" class="muted">Loading plan…</p>
         <p>
@@ -122,7 +134,7 @@
         <p id="waitlist-status" class="status"></p>
       </section>
 
-      <section class="card">
+      <section class="card" id="section-badge">
         <h2>Toolbar badge</h2>
         <p class="muted">
           Shows a count on the extension icon for how many tabs you haven't touched in a while —
@@ -169,7 +181,7 @@
         </label>
       </section>
 
-      <section class="card">
+      <section class="card" id="section-auto">
         <h2>Auto-triage</h2>
         <p class="muted">
           When you open new tabs, Tab Triage can quietly re-cluster the tabs in that window into native Chrome
@@ -228,7 +240,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card" id="section-notion">
         <h2>Notion export</h2>
         <p class="muted">
           Send saved sessions and triage results straight into a Notion page. One-time setup:
@@ -260,7 +272,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card" id="section-sync">
         <h2>Sync</h2>
         <p class="muted">
           When enabled, your saved sessions are mirrored to Chrome's built-in sync (the same channel that
@@ -293,6 +305,7 @@
       </section>
 
       <section class="card">
+      <section class="card" id="section-privacy">
         <h2>Privacy</h2>
         <ul class="muted">
           <li>Your API key is stored only in this browser's local storage.</li>
