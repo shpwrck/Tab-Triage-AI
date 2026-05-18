@@ -58,6 +58,11 @@ const els = {
   notionStatus: $("#notion-status"),
   themeRadios: document.querySelectorAll('input[name="theme"]'),
   themeHelp: $("#theme-help"),
+  exportBtn: $("#export-settings"),
+  importBtn: $("#import-settings"),
+  importFile: $("#import-file"),
+  dataStatus: $("#data-status"),
+  dataHint: $("#data-hint"),
 };
 
 async function init() {
@@ -99,6 +104,7 @@ async function init() {
   await initBadge(settings);
   await initSync(settings);
   await initNotion(settings);
+  await initDataSection();
 }
 
 function initSectionNav() {
@@ -514,6 +520,77 @@ async function onWaitlist() {
 function setStatus(msg, cls) {
   els.status.textContent = msg;
   els.status.className = `status ${cls}`;
+}
+
+async function initDataSection() {
+  const fresh = await getSettings();
+  const isLifetime = fresh.plan === "lifetime";
+
+  if (!isLifetime) {
+    els.exportBtn.disabled = true;
+    els.importBtn.disabled = true;
+    els.dataHint.textContent = "Settings backup is a Lifetime feature. Upgrade in the Plan section above.";
+    return;
+  }
+
+  els.exportBtn.addEventListener("click", onExport);
+  els.importBtn.addEventListener("click", () => els.importFile.click());
+  els.importFile.addEventListener("change", onImport);
+}
+
+async function onExport() {
+  const settings = await getSettings();
+  const json = JSON.stringify(settings, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "tab-triage-settings.json";
+  a.click();
+  URL.revokeObjectURL(url);
+  setDataStatus("Exported. Keep this file private — it contains your API keys.", "ok");
+}
+
+async function onImport() {
+  const file = els.importFile.files[0];
+  if (!file) return;
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    setDataStatus("Invalid JSON file.", "err");
+    els.importFile.value = "";
+    return;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    setDataStatus("Unrecognized format — expected a JSON object.", "err");
+    els.importFile.value = "";
+    return;
+  }
+  // Numeric field sanity checks for the most critical settings.
+  if (parsed.autoTriage?.debounceSeconds !== undefined &&
+      !Number.isFinite(parsed.autoTriage.debounceSeconds)) {
+    setDataStatus("Import rejected: autoTriage.debounceSeconds must be a number.", "err");
+    els.importFile.value = "";
+    return;
+  }
+  if (parsed.badge?.thresholdHours !== undefined &&
+      !Number.isFinite(parsed.badge.thresholdHours)) {
+    setDataStatus("Import rejected: badge.thresholdHours must be a number.", "err");
+    els.importFile.value = "";
+    return;
+  }
+  // Strip plan — it is always authoritative from ExtPay, never from a file.
+  // Also strip the legacy root-level apiKey so migration logic stays clean.
+  const { plan, apiKey, ...rest } = parsed;
+  await saveSettings(rest);
+  setDataStatus("Imported. Reloading…", "ok");
+  setTimeout(() => location.reload(), 800);
+}
+
+function setDataStatus(msg, cls) {
+  els.dataStatus.textContent = msg;
+  els.dataStatus.className = `status ${cls}`;
 }
 
 init();
