@@ -1,5 +1,5 @@
 import { getSettings, listSessions, deleteSession, saveSession, updateSession } from "../lib/storage.js";
-import { readTriageCache, saveTriageCache } from "../lib/triage_cache.js";
+import { readTriageCache, saveTriageCache, clearTriageCache } from "../lib/triage_cache.js";
 import { triageTabs, LLMError } from "../lib/llm/index.js";
 import { applyAllAsTabGroups, restoreSession } from "../lib/actions.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
@@ -19,6 +19,7 @@ const els = {
   statDupes: $("#stat-dupes"),
   statSessions: $("#stat-sessions"),
   triageNow: $("#triage-now"),
+  clearHistory: $("#clear-history"),
   openSettings: $("#open-settings"),
   heroStatus: $("#hero-status"),
   latestMeta: $("#latest-meta"),
@@ -43,6 +44,7 @@ const els = {
 async function init() {
   els.openSettings.addEventListener("click", () => chrome.runtime.openOptionsPage());
   els.triageNow.addEventListener("click", onTriageNow);
+  els.clearHistory.addEventListener("click", onClearHistory);
   els.closeAllDupes.addEventListener("click", onCloseAllDuplicates);
   els.archiveAllStale.addEventListener("click", onArchiveAllStale);
   els.closeAllStale.addEventListener("click", onCloseAllStale);
@@ -646,6 +648,23 @@ async function onTriageNow() {
     await setTriageRunning(false).catch(() => {});
     els.triageNow.disabled = false;
     els.triageNow.textContent = "Triage now";
+  }
+}
+
+async function onClearHistory() {
+  const cached = await readTriageCache();
+  if (!cached || !cached.groups?.length) {
+    setHeroStatus("No triage history to clear.", "");
+    return;
+  }
+  if (!confirm("Clear the latest triage from the dashboard? Open tabs and saved sessions are not affected.")) return;
+  try {
+    await clearTriageCache();
+    state.cache = null;
+    await renderLatest();
+    setHeroStatus("Triage history cleared.", "ok");
+  } catch (e) {
+    setHeroStatus(`Couldn't clear history: ${e.message ?? e}`, "err");
   }
 }
 
