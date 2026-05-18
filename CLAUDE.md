@@ -44,6 +44,7 @@ scripts/package.sh       whitelist zip builder, verifies manifest references
 - **Triage result schema**: `{label, summary: [string, string, string], tabs: [{title, url, favIconUrl}], tab_ids?}`. Older code carried an `emoji` field; ignore on render.
 - **Notion blocks**: avoid emoji-decorated callouts (Notion forces an icon). Use `paragraph` for metadata, `quote` for notes, `heading_2` + `bulleted_list_item` for groups.
 - **Button feedback inline**, not at the top of the page. Use `flashAsyncButton(btn, fn)` (popup and newtab each have a copy). Throw `GateError(message, shortLabel)` for precondition failures so the button reads "Lifetime only" / "Set up first" instead of a generic "Failed."
+- **Settings sections must clear the nav trigger line.** `initSectionNav()` in `options/options.js` highlights the section that straddles a trigger line at `scroll-margin-top + 8` (~72px). A section shorter than that would have both its top and bottom above the trigger and be skipped, so any new `<section class="card" id="section-…">` in `options.html` should render taller than ~80px. If a section is genuinely tiny (e.g. a single toggle), pad it with helper copy (`<p class="muted">…</p>`) until it clears the line — don't shrink the trigger.
 - **Pricing is `$9.99` lifetime**, stored in `lib/config.js` for UI copy only; authoritative on the ExtensionPay dashboard.
 
 ## Build & verify
