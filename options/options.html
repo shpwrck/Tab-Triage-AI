@@ -279,6 +279,20 @@
       </section>
 
       <section class="card">
+        <h2>Settings backup</h2>
+        <p class="muted" id="data-hint">
+          Export your current settings to a JSON file, or restore from a previous export to set up a new
+          profile quickly. The file includes your API keys — keep it private.
+        </p>
+        <div class="actions">
+          <button id="export-settings" class="ghost">Export settings</button>
+          <button id="import-settings" class="ghost">Import settings</button>
+          <input id="import-file" type="file" accept=".json" style="display:none;" />
+          <span id="data-status" class="status"></span>
+        </div>
+      </section>
+
+      <section class="card">
         <h2>Privacy</h2>
         <ul class="muted">
           <li>Your API key is stored only in this browser's local storage.</li>
