@@ -21,7 +21,7 @@ import {
 import { saveTriageCache } from "../lib/triage_cache.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
 import { fuzzyScoreMulti } from "../lib/fuzzy.js";
-import { setTriageRunning } from "../lib/badge.js";
+import { setTriageRunning, formatThresholdLabel } from "../lib/badge.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -54,11 +54,24 @@ const els = {
   error: $("#error"),
   quota: $("#quota"),
   openOptions: $("#open-options"),
+  staleSection: $("#stale-section"),
+  staleSectionCount: $("#stale-section-count"),
+  staleSectionList: $("#stale-section-list"),
+  staleSectionFooter: $("#stale-section-footer"),
+  staleCloseAll: $("#stale-close-all"),
+  staleArchiveAll: $("#stale-archive-all"),
+  dupesSection: $("#dupes-section"),
+  dupesSectionCount: $("#dupes-section-count"),
+  dupesSectionList: $("#dupes-section-list"),
+  dupesSectionFooter: $("#dupes-section-footer"),
+  dupesCloseAll: $("#dupes-close-all"),
 };
 
 const state = {
   tabs: [], // { id, title, url, favIconUrl, host, checked }
   lastResult: null, // { groups, tabsById }
+  staleTabs: [],
+  dupeData: { duplicates: [], totalRedundant: 0 },
 };
 
 async function init() {
@@ -77,6 +90,9 @@ async function init() {
     renderTabs();
   });
   els.search.addEventListener("input", onSearchInput);
+  els.staleCloseAll.addEventListener("click", onCloseAllStale);
+  els.staleArchiveAll.addEventListener("click", onArchiveAllStale);
+  els.dupesCloseAll.addEventListener("click", onCloseAllDupes);
   // Auto-focus the search field — the Cmd/Ctrl+Shift+K binding opens
   // the popup, and the popup expects the search field to receive the
   // user's next keystrokes.
@@ -94,6 +110,7 @@ async function init() {
   }
 
   await loadCurrentWindowTabs();
+  await Promise.all([renderStaleTabs(), renderDupeTabs()]).catch(() => {});
 }
 
 async function loadCurrentWindowTabs() {
@@ -265,6 +282,8 @@ async function onTriage() {
 function showResult() {
   els.picker.classList.add("hidden");
   els.sessions.classList.add("hidden");
+  els.staleSection.classList.add("hidden");
+  els.dupesSection.classList.add("hidden");
   els.result.classList.remove("hidden");
   renderGroups();
 }
@@ -273,11 +292,15 @@ function showPicker() {
   els.result.classList.add("hidden");
   els.sessions.classList.add("hidden");
   els.picker.classList.remove("hidden");
+  renderStaleTabs().catch(() => {});
+  renderDupeTabs().catch(() => {});
 }
 
 async function showSessions() {
   els.result.classList.add("hidden");
   els.picker.classList.add("hidden");
+  els.staleSection.classList.add("hidden");
+  els.dupesSection.classList.add("hidden");
   els.sessions.classList.remove("hidden");
   await renderSessions();
 }
@@ -683,12 +706,14 @@ async function runSearch(q) {
   const query = (q ?? "").trim();
   if (!query) {
     els.searchResults.classList.add("hidden");
-    els.picker.classList.remove("hidden");
+    showPicker();
     return;
   }
   els.picker.classList.add("hidden");
   els.result.classList.add("hidden");
   els.sessions.classList.add("hidden");
+  els.staleSection.classList.add("hidden");
+  els.dupesSection.classList.add("hidden");
   els.searchResults.classList.remove("hidden");
 
   // Tabs: across every window. Fuzzy-scored against "title url".
@@ -796,6 +821,217 @@ async function switchToTab(tab) {
     window.close();
   } catch (e) {
     showError(`Tab unavailable: ${e.message ?? e}`);
+  }
+}
+
+function computeDuplicates(tabs) {
+  const byUrl = new Map();
+  for (const t of tabs) {
+    if (!t.url || !/^https?:/.test(t.url)) continue;
+    if (!byUrl.has(t.url)) byUrl.set(t.url, []);
+    byUrl.get(t.url).push(t);
+  }
+  const duplicates = [];
+  let totalRedundant = 0;
+  for (const [url, list] of byUrl) {
+    if (list.length < 2) continue;
+    list.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
+    const keep = list[0];
+    const closeable = list.slice(1);
+    totalRedundant += closeable.length;
+    duplicates.push({
+      url,
+      title: keep.title || url,
+      favIconUrl: keep.favIconUrl,
+      keepId: keep.id,
+      closeIds: closeable.map(t => t.id),
+    });
+  }
+  duplicates.sort((a, b) => b.closeIds.length - a.closeIds.length);
+  return { duplicates, totalRedundant };
+}
+
+function humanAgo(ms) {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h`;
+  return `${Math.round(h / 24)} d`;
+}
+
+async function renderStaleTabs() {
+  const [tabs, settings] = await Promise.all([
+    chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }),
+    getSettings(),
+  ]);
+  const hours = settings.badge?.thresholdHours ?? 24;
+  const thresholdMs = hours * 60 * 60 * 1000;
+  const now = Date.now();
+  const stale = tabs
+    .filter(t => typeof t.lastAccessed === "number" && now - t.lastAccessed >= thresholdMs && !t.pinned)
+    .sort((a, b) => (a.lastAccessed ?? 0) - (b.lastAccessed ?? 0));
+
+  state.staleTabs = stale;
+
+  if (!stale.length) {
+    els.staleSection.classList.add("hidden");
+    return;
+  }
+
+  const label = formatThresholdLabel(hours);
+  els.staleSectionCount.textContent = `${stale.length} tab${stale.length === 1 ? "" : "s"} · ${label}`;
+  els.staleSection.classList.remove("hidden");
+  els.staleSectionFooter.classList.remove("hidden");
+  els.staleCloseAll.textContent = `Close all · ${stale.length}`;
+  els.staleArchiveAll.textContent = `Archive all · ${stale.length}`;
+
+  els.staleSectionList.innerHTML = "";
+  for (const t of stale) {
+    const ago = humanAgo(now - (t.lastAccessed ?? now));
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <img class="favicon" src="${escapeAttr(t.favIconUrl || "")}" />
+      <div class="alert-tab-body">
+        <span class="alert-tab-title" title="${escapeAttr(t.title || t.url)}">${escape(t.title || t.url)}</span>
+        <span class="alert-tab-meta">${escape(safeHost(t.url))} · ${escape(ago)} ago</span>
+      </div>
+      <button class="tab-close" data-tab-id="${t.id}" title="Close this tab">×</button>
+    `;
+    li.querySelector(".tab-close").addEventListener("click", async e => {
+      e.stopPropagation();
+      const id = Number(e.currentTarget.dataset.tabId);
+      try {
+        await chrome.tabs.remove(id);
+        await renderStaleTabs();
+      } catch (err) {
+        showError(`Couldn't close tab: ${err.message ?? err}`);
+      }
+    });
+    els.staleSectionList.appendChild(li);
+  }
+  hideBrokenFavicons(els.staleSectionList);
+}
+
+async function renderDupeTabs() {
+  const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
+  const { duplicates, totalRedundant } = computeDuplicates(tabs);
+
+  state.dupeData = { duplicates, totalRedundant };
+
+  if (!duplicates.length) {
+    els.dupesSection.classList.add("hidden");
+    return;
+  }
+
+  els.dupesSectionCount.textContent = `${totalRedundant} redundant`;
+  els.dupesSection.classList.remove("hidden");
+  els.dupesSectionFooter.classList.remove("hidden");
+  els.dupesCloseAll.textContent = `Close all duplicates · ${totalRedundant}`;
+
+  els.dupesSectionList.innerHTML = "";
+  for (const d of duplicates) {
+    const n = d.closeIds.length + 1;
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <img class="favicon" src="${escapeAttr(d.favIconUrl || "")}" />
+      <div class="alert-dup-body">
+        <span class="alert-dup-title" title="${escapeAttr(d.title)}">${escape(d.title)}</span>
+      </div>
+      <span class="alert-dup-count">${n} copies</span>
+      <div class="alert-dup-actions">
+        <button data-action="focus" data-keep-id="${d.keepId}">Open</button>
+        <button data-action="close-dupes" data-close-ids="${d.closeIds.join(",")}" class="danger-subtle">Close ${d.closeIds.length}</button>
+      </div>
+    `;
+    li.querySelectorAll("button[data-action]").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        onDupeRowAction(btn.dataset.action, btn.dataset);
+      });
+    });
+    els.dupesSectionList.appendChild(li);
+  }
+  hideBrokenFavicons(els.dupesSectionList);
+}
+
+async function onDupeRowAction(action, dataset) {
+  if (action === "focus") {
+    const id = Number(dataset.keepId);
+    try {
+      const tab = await chrome.tabs.get(id);
+      await chrome.windows.update(tab.windowId, { focused: true });
+      await chrome.tabs.update(id, { active: true });
+      window.close();
+    } catch {
+      showError("Tab no longer exists.");
+    }
+  } else if (action === "close-dupes") {
+    const ids = (dataset.closeIds || "").split(",").map(Number).filter(n => !Number.isNaN(n));
+    if (!ids.length) return;
+    try {
+      await chrome.tabs.remove(ids);
+      await renderDupeTabs();
+    } catch (e) {
+      showError(`Couldn't close duplicates: ${e.message ?? e}`);
+    }
+  }
+}
+
+async function onCloseAllStale() {
+  const stale = state.staleTabs;
+  if (!stale?.length) return;
+  if (!confirm(`Close ${stale.length} stale tab${stale.length === 1 ? "" : "s"} without saving?`)) return;
+  try {
+    await chrome.tabs.remove(stale.map(t => t.id));
+    await renderStaleTabs();
+  } catch (e) {
+    showError(`Couldn't close stale tabs: ${e.message ?? e}`);
+  }
+}
+
+async function onArchiveAllStale() {
+  const stale = state.staleTabs;
+  if (!stale?.length) return;
+  const settings = await getSettings();
+  const hours = settings.badge?.thresholdHours ?? 24;
+  const label = formatThresholdLabel(hours);
+  const session = {
+    id: `s_${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    title: `Stale tabs (${label})`,
+    groups: [{
+      label: `Stale tabs (${label})`,
+      emoji: "",
+      summary: [
+        `${stale.length} tab${stale.length === 1 ? "" : "s"} not activated in ${label}`,
+        "Captured from the popup",
+        "Restore via Saved sessions to revisit",
+      ],
+      tabs: stale.map(t => ({ title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
+    }],
+  };
+  await saveSession(session);
+  try {
+    await chrome.tabs.remove(stale.map(t => t.id));
+    flashButton(els.staleArchiveAll, "Archived");
+    await renderStaleTabs();
+  } catch (e) {
+    showError(`Couldn't archive stale tabs: ${e.message ?? e}`);
+  }
+}
+
+async function onCloseAllDupes() {
+  const { duplicates, totalRedundant } = state.dupeData;
+  if (!totalRedundant) return;
+  if (!confirm(`Close ${totalRedundant} duplicate tab${totalRedundant === 1 ? "" : "s"} across ${duplicates.length} URL${duplicates.length === 1 ? "" : "s"}? The most recently used copy of each will be kept.`)) return;
+  const ids = duplicates.flatMap(d => d.closeIds);
+  try {
+    await chrome.tabs.remove(ids);
+    await renderDupeTabs();
+  } catch (e) {
+    showError(`Couldn't close duplicates: ${e.message ?? e}`);
   }
 }
 

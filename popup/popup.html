@@ -38,6 +38,29 @@
         <ul id="tab-list" class="tab-list"></ul>
       </section>
 
+      <section id="stale-section" class="hidden alert-section">
+        <div class="alert-section-head">
+          <span class="alert-section-title">Stale tabs</span>
+          <span id="stale-section-count" class="alert-count"></span>
+        </div>
+        <ul id="stale-section-list" class="alert-list"></ul>
+        <div id="stale-section-footer" class="alert-footer hidden">
+          <button id="stale-close-all" class="small danger-subtle">Close all</button>
+          <button id="stale-archive-all" class="small">Archive all</button>
+        </div>
+      </section>
+
+      <section id="dupes-section" class="hidden alert-section">
+        <div class="alert-section-head">
+          <span class="alert-section-title">Duplicate tabs</span>
+          <span id="dupes-section-count" class="alert-count"></span>
+        </div>
+        <ul id="dupes-section-list" class="alert-list"></ul>
+        <div id="dupes-section-footer" class="alert-footer hidden">
+          <button id="dupes-close-all" class="small danger-subtle">Close all duplicates</button>
+        </div>
+      </section>
+
       <section id="result" class="hidden">
         <div class="result-head">
           <h2>Suggested groups</h2>
