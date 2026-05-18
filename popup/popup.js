@@ -21,6 +21,7 @@ import {
 import { saveTriageCache } from "../lib/triage_cache.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
 import { fuzzyScoreMulti } from "../lib/fuzzy.js";
+import { setTriageRunning } from "../lib/badge.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -226,6 +227,7 @@ async function onTriage() {
   }
 
   setBusy(true);
+  await setTriageRunning(true).catch(() => {});
   try {
     const rawGroups = await triageTabs({
       settings,
@@ -255,6 +257,7 @@ async function onTriage() {
   } catch (e) {
     showError(e instanceof LLMError ? e.message : `Unexpected error: ${e.message ?? e}`);
   } finally {
+    await setTriageRunning(false).catch(() => {});
     setBusy(false);
   }
 }

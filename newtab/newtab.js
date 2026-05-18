@@ -3,6 +3,7 @@ import { readTriageCache, saveTriageCache } from "../lib/triage_cache.js";
 import { triageTabs, LLMError } from "../lib/llm/index.js";
 import { applyAllAsTabGroups, restoreSession } from "../lib/actions.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
+import { setTriageRunning } from "../lib/badge.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -615,6 +616,7 @@ async function onTriageNow() {
 
   els.triageNow.disabled = true;
   els.triageNow.textContent = "Triaging…";
+  await setTriageRunning(true).catch(() => {});
   try {
     const raw = await triageTabs({
       settings,
@@ -641,6 +643,7 @@ async function onTriageNow() {
     const msg = e instanceof LLMError ? e.message : (e.message ?? String(e));
     setHeroStatus(`Triage failed: ${msg}`, "err");
   } finally {
+    await setTriageRunning(false).catch(() => {});
     els.triageNow.disabled = false;
     els.triageNow.textContent = "Triage now";
   }
