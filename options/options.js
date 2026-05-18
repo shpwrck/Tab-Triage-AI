@@ -116,41 +116,58 @@ function initSectionNav() {
   }
   if (!entries.length) return;
 
-  const nav = document.querySelector(".page-nav");
-
   const setActive = link => {
     for (const e of entries) e.link.classList.toggle("active", e.link === link);
   };
 
+  // A nav click locks that link in until the user actively scrolls. Trailing
+  // sections (Backup/Privacy) can't always be scrolled up to the trigger
+  // line — the page is already at max scroll — so plain scroll-spy would
+  // resolve them to whatever section sits at the top of the viewport.
+  let pinned = null;
+  for (const e of entries) {
+    e.link.addEventListener("click", () => {
+      pinned = e.link;
+      setActive(e.link);
+    });
+  }
+  const releasePin = () => { pinned = null; };
+  window.addEventListener("wheel", releasePin, { passive: true });
+  window.addEventListener("touchstart", releasePin, { passive: true });
+  window.addEventListener("keydown", e => {
+    if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(e.key)) {
+      releasePin();
+    }
+  });
+
+  // Trigger line sits just past a section's anchored resting position
+  // (driven by `scroll-margin-top` on `section.card`), so the section a
+  // user just clicked actually crosses it.
+  const scrollMargin = parseFloat(getComputedStyle(entries[0].target).scrollMarginTop) || 0;
+  const triggerOffset = scrollMargin + 8;
+
   const update = () => {
-    const scroller = document.scrollingElement || document.documentElement;
-    // If we're at (or within a few px of) the bottom of the page, the last
-    // section can never reach the trigger line — pin it active instead.
-    const atBottom = scroller.scrollTop + window.innerHeight >= scroller.scrollHeight - 4;
-    if (atBottom) {
-      setActive(entries[entries.length - 1].link);
-      return;
-    }
-    // Otherwise pick the section whose top has just passed under the sticky
-    // nav. A small extra offset prevents flicker when a section's top sits
-    // exactly on the line.
-    const triggerY = (nav?.getBoundingClientRect().bottom ?? 0) + 8;
-    let current = entries[0];
+    if (pinned) { setActive(pinned); return; }
+    // Section that straddles the trigger line is "in focus".
     for (const e of entries) {
-      if (e.target.getBoundingClientRect().top <= triggerY) current = e;
-      else break;
+      const r = e.target.getBoundingClientRect();
+      if (r.top <= triggerOffset && r.bottom > triggerOffset) {
+        setActive(e.link);
+        return;
+      }
     }
-    setActive(current.link);
+    // No straddler: above the first section or past the last. Pick by
+    // which end of the page we're closer to.
+    const scroller = document.scrollingElement || document.documentElement;
+    const pastEnd = scroller.scrollTop > scroller.scrollHeight - window.innerHeight - 4;
+    setActive(pastEnd ? entries[entries.length - 1].link : entries[0].link);
   };
 
   let scheduled = false;
   const onScroll = () => {
     if (scheduled) return;
     scheduled = true;
-    requestAnimationFrame(() => {
-      scheduled = false;
-      update();
-    });
+    requestAnimationFrame(() => { scheduled = false; update(); });
   };
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", onScroll);
