@@ -5,7 +5,7 @@
 
 import { getExtPay, billingEnabled, refreshPlan } from "../lib/billing.js";
 import { installAutoTriage } from "../lib/auto_triage.js";
-import { installBadge, updateBadge } from "../lib/badge.js";
+import { installBadge, updateBadge, applyTriageRunning } from "../lib/badge.js";
 import { installSleepStale } from "../lib/sleep_stale.js";
 import { installSessionSync } from "../lib/session_sync.js";
 import { runManualTriage } from "../lib/manual_triage.js";
@@ -73,6 +73,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "refresh-plan") {
     refreshPlan().then(
       plan => sendResponse({ ok: true, plan }),
+      err => sendResponse({ ok: false, error: String(err?.message ?? err) }),
+    );
+    return true;
+  }
+  if (msg?.type === "tt-set-triage-running") {
+    applyTriageRunning(!!msg.running).then(
+      () => sendResponse({ ok: true }),
       err => sendResponse({ ok: false, error: String(err?.message ?? err) }),
     );
     return true;
