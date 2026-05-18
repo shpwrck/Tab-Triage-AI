@@ -109,25 +109,52 @@ async function init() {
 
 function initSectionNav() {
   const links = Array.from(document.querySelectorAll(".page-nav a"));
-  const byTarget = new Map();
+  const entries = [];
   for (const a of links) {
     const target = document.querySelector(a.getAttribute("href"));
-    if (target) byTarget.set(target, a);
+    if (target) entries.push({ link: a, target });
   }
-  if (!byTarget.size || !("IntersectionObserver" in window)) return;
-  // The rootMargin trims the viewport so only one section's mid-band
-  // counts as visible at a time — avoids two links highlighting at once.
-  const observer = new IntersectionObserver(
-    entries => {
-      for (const e of entries) {
-        if (!e.isIntersecting) continue;
-        for (const a of links) a.classList.remove("active");
-        byTarget.get(e.target)?.classList.add("active");
-      }
-    },
-    { rootMargin: "-40% 0px -55% 0px", threshold: 0 },
-  );
-  for (const target of byTarget.keys()) observer.observe(target);
+  if (!entries.length) return;
+
+  const nav = document.querySelector(".page-nav");
+
+  const setActive = link => {
+    for (const e of entries) e.link.classList.toggle("active", e.link === link);
+  };
+
+  const update = () => {
+    const scroller = document.scrollingElement || document.documentElement;
+    // If we're at (or within a few px of) the bottom of the page, the last
+    // section can never reach the trigger line — pin it active instead.
+    const atBottom = scroller.scrollTop + window.innerHeight >= scroller.scrollHeight - 4;
+    if (atBottom) {
+      setActive(entries[entries.length - 1].link);
+      return;
+    }
+    // Otherwise pick the section whose top has just passed under the sticky
+    // nav. A small extra offset prevents flicker when a section's top sits
+    // exactly on the line.
+    const triggerY = (nav?.getBoundingClientRect().bottom ?? 0) + 8;
+    let current = entries[0];
+    for (const e of entries) {
+      if (e.target.getBoundingClientRect().top <= triggerY) current = e;
+      else break;
+    }
+    setActive(current.link);
+  };
+
+  let scheduled = false;
+  const onScroll = () => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      update();
+    });
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll);
+  update();
 }
 
 async function initTheme() {
