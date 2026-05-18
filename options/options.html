@@ -58,31 +58,31 @@
           <button id="test" class="ghost">Test connection</button>
           <span id="status" class="status"></span>
         </div>
-      </section>
 
-      <section class="card">
-        <h2>Free LLM via OpenRouter</h2>
-        <p class="muted">
-          Don't want to pay any provider? OpenRouter exposes several models for free (rate-limited but
-          generous for tab triage). Setup, top to bottom:
-        </p>
-        <ol class="muted" style="padding-left:20px; margin: 0 0 12px;">
-          <li>Sign up at <a href="https://openrouter.ai" target="_blank" rel="noopener">openrouter.ai</a> — no credit card required for the free tier.</li>
-          <li>Go to <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a> and create an API key. Copy it.</li>
-          <li>In the <strong>LLM provider</strong> card above:
-            <ul style="margin-top:4px;">
-              <li>Provider: <strong>OpenAI-compatible</strong></li>
-              <li>API key: paste the OpenRouter key</li>
-              <li>Base URL: <code>https://openrouter.ai/api/v1</code></li>
-              <li>Model: pick one with the <code>:free</code> suffix from <a href="https://openrouter.ai/models?max_price=0" target="_blank" rel="noopener">the free model list</a>. Good defaults today: <code>deepseek/deepseek-chat-v3-0324:free</code>, <code>google/gemini-2.0-flash-exp:free</code>, <code>meta-llama/llama-3.3-70b-instruct:free</code>.</li>
-            </ul>
-          </li>
-          <li>Click <strong>Save</strong>, then <strong>Test connection</strong> in the card above.</li>
-        </ol>
-        <p class="muted" style="font-size:12px;">
-          Free models have per-day request limits and can be slower or noisier than paid ones. If a triage
-          fails, swap in a different <code>:free</code> model and retry. Your key and choice stay on this device.
-        </p>
+        <details class="disclosure">
+          <summary>Free LLM via OpenRouter</summary>
+          <p class="muted">
+            Don't want to pay any provider? OpenRouter exposes several models for free (rate-limited but
+            generous for tab triage). Setup, top to bottom:
+          </p>
+          <ol class="muted" style="padding-left:20px; margin: 0 0 12px;">
+            <li>Sign up at <a href="https://openrouter.ai" target="_blank" rel="noopener">openrouter.ai</a> — no credit card required for the free tier.</li>
+            <li>Go to <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a> and create an API key. Copy it.</li>
+            <li>In the fields above:
+              <ul style="margin-top:4px;">
+                <li>Provider: <strong>OpenAI-compatible</strong></li>
+                <li>API key: paste the OpenRouter key</li>
+                <li>Base URL: <code>https://openrouter.ai/api/v1</code></li>
+                <li>Model: pick one with the <code>:free</code> suffix from <a href="https://openrouter.ai/models?max_price=0" target="_blank" rel="noopener">the free model list</a>. Good defaults today: <code>deepseek/deepseek-chat-v3-0324:free</code>, <code>google/gemini-2.0-flash-exp:free</code>, <code>meta-llama/llama-3.3-70b-instruct:free</code>.</li>
+              </ul>
+            </li>
+            <li>Click <strong>Save</strong>, then <strong>Test connection</strong> above.</li>
+          </ol>
+          <p class="muted" style="font-size:12px; margin-bottom:0;">
+            Free models have per-day request limits and can be slower or noisier than paid ones. If a triage
+            fails, swap in a different <code>:free</code> model and retry. Your key and choice stay on this device.
+          </p>
+        </details>
       </section>
 
       <section class="card">

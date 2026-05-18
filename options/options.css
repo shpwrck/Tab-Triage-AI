@@ -207,3 +207,33 @@ code {
   border-color: var(--accent-2);
   box-shadow: 0 0 0 3px var(--accent-2-soft);
 }
+
+.disclosure {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.disclosure > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  user-select: none;
+}
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure > summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--muted);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.12s ease;
+}
+.disclosure[open] > summary::before { transform: rotate(90deg); }
+.disclosure > *:not(summary) { margin-top: 8px; }
