@@ -119,7 +119,7 @@ Not yet built (deferred):
 - Landing page at the domain
 - Launch-day post drafts (Reddit / HN / Product Hunt / X)
 - Per-tab AI summaries (Lifetime perk; expensive on tokens)
-- "Deep mode" — content-script page text extraction; optional permissions reserved for it (`scripting`, `<all_urls>`)
+- "Deep mode" — content-script page text extraction. Would need `scripting` + `<all_urls>` (optional). These were removed from the manifest in 0.3.1 because the Chrome Web Store rejected them as "requesting but not using" (unused future-proofing). If deep mode is ever built, re-add them as `optional_permissions`/`optional_host_permissions` *in the same release that ships the feature*, never ahead of it.
 - Vertical-tabs sidebar (Chrome ships native equivalents; not the wedge)
 - Mobile sync / team sharing (would require a backend, breaks the privacy story)
 
