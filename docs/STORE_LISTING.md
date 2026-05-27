@@ -143,18 +143,6 @@ Shows a system notification after a background auto-triage run summarizing how m
 Each host the extension contacts is an LLM provider API that the user explicitly chose in Settings (Anthropic, OpenAI, Google Gemini, OpenRouter, Groq, Together, Fireworks), localhost/127.0.0.1 for users running local models (Ollama, LM Studio, vLLM), Notion's API for the optional Send-to-Notion feature, or ExtensionPay for license verification. All calls are made directly from the user's browser to the chosen host; the extension does not proxy through any server we operate.
 ```
 
-### `<all_urls>` (optional host permission)
-
-```
-Reserved for a future opt-in "deep mode" that would extract visible page text to give the AI more context than the tab title alone. This permission is not granted at install time — it would be requested only when the user explicitly enables deep mode, and only for the duration they keep it enabled.
-```
-
-### `scripting` (optional permission)
-
-```
-Paired with the optional <all_urls> permission for the same future opt-in deep-mode feature, where a content script would extract visible page text. Not used today; granted only on explicit user request.
-```
-
 ### Remote code use
 
 **Are you using remote code?**

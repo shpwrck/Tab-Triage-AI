@@ -82,8 +82,6 @@ Sent: each saved session as a separate item to `chrome.storage.sync`. This is Go
 | `alarms` | Debounce auto-triage runs and refresh the toolbar badge on a schedule |
 | `notifications` | Show "Grouped N tabs" notifications after an auto-triage run |
 | `host_permissions` for `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `openrouter.ai`, `api.groq.com`, `api.together.xyz`, `api.fireworks.ai`, `localhost`, `127.0.0.1`, `api.notion.com`, `extensionpay.com` | Direct browser-to-provider API calls; no proxy in between |
-| `optional_host_permissions: <all_urls>` | Reserved for a future opt-in "deep mode" that would read page text. Currently unused. Granted only on explicit user request. |
-| `optional_permissions: scripting` | Reserved for the same future deep mode |
 | Content script on `extensionpay.com` | Detect successful payment so your lifetime status activates immediately |
 
 ## What we do not do
