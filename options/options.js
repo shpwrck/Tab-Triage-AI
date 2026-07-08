@@ -175,8 +175,8 @@ function initSectionNav() {
 }
 
 async function initTheme() {
-  // Plan was just refreshed by renderPlan() — re-read so the lifetime
-  // gate reflects the post-refresh value, mirroring initBadge().
+  // Plan refresh just ran in renderPlan(); re-read cached settings so
+  // lifetime gates keep using the preserved local plan if refresh is stale.
   const fresh = await getSettings();
   const isLifetime = fresh.plan === "lifetime";
   const current = fresh.display?.theme ?? "system";
@@ -305,9 +305,8 @@ function unitToHours(value, unit) {
 }
 
 async function initBadge(settings) {
-  // Plan was just refreshed in renderPlan() — read settings again so we
-  // pick up the post-refresh value rather than the snapshot taken at the
-  // top of init().
+  // Plan refresh just ran in renderPlan(); read settings again so we pick up
+  // verified changes, while preserving the cached local plan on refresh failure.
   const fresh = await getSettings();
   const isLifetime = fresh.plan === "lifetime";
   const cfg = fresh.badge;
@@ -491,16 +490,21 @@ async function renderPlan() {
     return;
   }
 
-  const plan = await refreshPlan();
+  const planRefresh = await refreshPlan();
+  const { plan, verified } = planRefresh;
   if (plan === "lifetime") {
-    els.planStatus.innerHTML = `You own <strong>Lifetime</strong>. Thanks for supporting the project.`;
+    els.planStatus.innerHTML = verified
+      ? `You own <strong>Lifetime</strong>. Thanks for supporting the project.`
+      : `You own <strong>Lifetime</strong>, saved on this browser. Paid status could not be refreshed.`;
     addAction("Restore on another browser", openLogin);
     els.waitlistWrap.classList.add("hidden");
     els.waitlistRow.classList.add("hidden");
     return;
   }
 
-  els.planStatus.innerHTML = `You're on <strong>Free</strong>.`;
+  els.planStatus.innerHTML = verified
+    ? `You're on <strong>Free</strong>.`
+    : `You're on <strong>Free</strong>. Paid status could not be refreshed.`;
   addAction(`Buy lifetime access · $${price}`, () => openCheckout(), "primary");
   addAction("Already paid? Sign in", openLogin);
   els.waitlistWrap.classList.add("hidden");
