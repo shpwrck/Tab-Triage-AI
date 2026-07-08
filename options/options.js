@@ -8,6 +8,8 @@ import {
   SESSION_LIMIT_CHOICES,
   SESSION_OVERFLOW_BLOCK_NEW,
   SESSION_OVERFLOW_DISCARD_OLDEST,
+  SNAPSHOT_LIMIT_CHOICES,
+  SNAPSHOT_INTERVAL_CHOICES,
 } from "../lib/storage.js";
 import { refreshPlan, openCheckout, openLogin, billingEnabled, lifetimePriceUsd } from "../lib/billing.js";
 import { pauseAutoTriage, resumeAutoTriage } from "../lib/auto_triage.js";
@@ -19,6 +21,11 @@ import {
   parseTriageExclusionText,
 } from "../lib/tab_policy.js";
 import { onSyncEnabledChange } from "../lib/session_sync.js";
+import {
+  captureSessionSnapshot,
+  clearSessionSnapshots,
+  getSessionSnapshotStatus,
+} from "../lib/session_snapshots.js";
 import { pingNotion, extractPageId, NotionError } from "../lib/notion.js";
 import { applyStoredTheme, applyTheme, watchThemeChanges } from "../lib/theme.js";
 import {
@@ -79,6 +86,13 @@ const els = {
   sleepEnabled: $("#sleep-enabled"),
   syncEnabled: $("#sync-enabled"),
   syncStatus: $("#sync-status"),
+  snapshotsEnabled: $("#snapshots-enabled"),
+  snapshotsConfig: $("#snapshots-config"),
+  snapshotLimit: $("#snapshot-limit"),
+  snapshotInterval: $("#snapshot-interval"),
+  snapshotCapture: $("#snapshot-capture"),
+  snapshotClear: $("#snapshot-clear"),
+  snapshotsStatus: $("#snapshots-status"),
   notionToken: $("#notion-token"),
   notionParent: $("#notion-parent"),
   notionParentHint: $("#notion-parent-hint"),
@@ -187,6 +201,7 @@ async function init() {
   await initTriageExclusions(settings);
   await initBadge(settings);
   await initSync(settings);
+  await initSnapshots(settings);
   await initNotion(settings);
   await initDataSection();
   watchBackgroundStatusChanges();
@@ -492,6 +507,149 @@ async function initSync(settings) {
       }
     }
   });
+}
+
+async function initSnapshots(settings) {
+  populateSnapshotOptions();
+
+  const fresh = await getSettings();
+  const isLifetime = fresh.plan === "lifetime";
+  const snapshotSettings = fresh.snapshots ?? settings.snapshots ?? {};
+  els.snapshotsEnabled.checked = isLifetime && !!snapshotSettings.enabled;
+  els.snapshotLimit.value = String(snapshotSettings.limit ?? 10);
+  els.snapshotInterval.value = String(snapshotSettings.intervalMinutes ?? 10);
+  setSnapshotControlsEnabled(isLifetime);
+
+  if (!isLifetime) {
+    els.snapshotsEnabled.disabled = true;
+    setSnapshotStatus("Automatic snapshots are a Lifetime feature. Upgrade in the Plan section above.", "warn");
+    return;
+  }
+
+  els.snapshotsEnabled.addEventListener("change", async () => {
+    const enabled = els.snapshotsEnabled.checked;
+    await saveSettings({ snapshots: { enabled } });
+    setSnapshotControlsEnabled(true);
+    if (!enabled) {
+      await renderSnapshotStatus("Snapshots are off.");
+      return;
+    }
+    setSnapshotStatus("Saving first snapshot locally...", "");
+    try {
+      const result = await captureSessionSnapshot({ force: true, reason: "enabled from Settings" });
+      await renderSnapshotStatus(snapshotCaptureResultMessage(result));
+    } catch (e) {
+      setSnapshotStatus(`Snapshot failed: ${e.message ?? e}`, "err");
+    }
+  });
+
+  const saveSnapshotConfig = async () => {
+    await saveSettings({
+      snapshots: {
+        limit: Number(els.snapshotLimit.value),
+        intervalMinutes: Number(els.snapshotInterval.value),
+      },
+    });
+    await renderSnapshotStatus("Snapshot settings saved.");
+  };
+  els.snapshotLimit.addEventListener("change", saveSnapshotConfig);
+  els.snapshotInterval.addEventListener("change", saveSnapshotConfig);
+
+  els.snapshotCapture.addEventListener("click", async () => {
+    if (!els.snapshotsEnabled.checked) {
+      setSnapshotStatus("Enable automatic snapshots first.", "warn");
+      return;
+    }
+    setSnapshotStatus("Capturing snapshot...", "");
+    try {
+      const result = await captureSessionSnapshot({ force: true, reason: "manual capture from Settings" });
+      await renderSnapshotStatus(snapshotCaptureResultMessage(result));
+    } catch (e) {
+      setSnapshotStatus(`Snapshot failed: ${e.message ?? e}`, "err");
+    }
+  });
+
+  els.snapshotClear.addEventListener("click", async () => {
+    const status = await getSessionSnapshotStatus();
+    if (!status.snapshots.length) {
+      setSnapshotStatus("No snapshots to clear.", "");
+      return;
+    }
+    if (!confirm(`Delete ${status.snapshots.length} automatic snapshot${status.snapshots.length === 1 ? "" : "s"} from this browser?`)) return;
+    await clearSessionSnapshots();
+    await renderSnapshotStatus("Snapshots cleared from local storage.");
+  });
+
+  await renderSnapshotStatus();
+}
+
+function populateSnapshotOptions() {
+  els.snapshotLimit.innerHTML = "";
+  for (const limit of SNAPSHOT_LIMIT_CHOICES) {
+    const opt = document.createElement("option");
+    opt.value = String(limit);
+    opt.textContent = `${limit} snapshots`;
+    els.snapshotLimit.appendChild(opt);
+  }
+
+  els.snapshotInterval.innerHTML = "";
+  for (const minutes of SNAPSHOT_INTERVAL_CHOICES) {
+    const opt = document.createElement("option");
+    opt.value = String(minutes);
+    opt.textContent = minutes < 60 ? `Every ${minutes} minutes` : "Every hour";
+    els.snapshotInterval.appendChild(opt);
+  }
+}
+
+function setSnapshotControlsEnabled(isLifetime) {
+  const enabled = isLifetime && els.snapshotsEnabled.checked;
+  els.snapshotLimit.disabled = !isLifetime;
+  els.snapshotInterval.disabled = !isLifetime;
+  els.snapshotCapture.disabled = !enabled;
+  els.snapshotClear.disabled = !isLifetime;
+  els.snapshotsConfig.classList.toggle("hidden", !isLifetime);
+}
+
+async function renderSnapshotStatus(prefix = "") {
+  const status = await getSessionSnapshotStatus();
+  const cfg = status.settings ?? {};
+  const snapshots = status.snapshots ?? [];
+  const limit = cfg.limit ?? 10;
+  const countText = `${snapshots.length}/${limit} snapshots stored locally.`;
+  let message;
+  let cls = "";
+
+  if (status.plan !== "lifetime") {
+    message = "Automatic snapshots are a Lifetime feature.";
+    cls = "warn";
+  } else if (!cfg.enabled) {
+    message = "Snapshots are off. No tab data is stored until you enable them.";
+  } else if (!snapshots.length) {
+    message = `Snapshots are on. ${countText} The first snapshot is saved after tab activity or by Capture now.`;
+  } else {
+    const newest = new Date(snapshots[0].createdAt).toLocaleString();
+    message = `Snapshots are on. ${countText} Newest: ${newest}. Oldest snapshots are deleted automatically.`;
+    cls = snapshots.length >= limit ? "warn" : "ok";
+  }
+
+  setSnapshotStatus([prefix, message].filter(Boolean).join(" "), cls);
+}
+
+function snapshotCaptureResultMessage(result) {
+  if (result?.status === "saved") {
+    const discarded = result.discarded
+      ? ` Deleted ${result.discarded} oldest snapshot${result.discarded === 1 ? "" : "s"}.`
+      : "";
+    return `Snapshot saved.${discarded}`;
+  }
+  if (result?.reason === "empty") return "No open web tabs to snapshot.";
+  if (result?.reason === "unchanged") return "Current tabs match the latest snapshot.";
+  if (result?.reason === "plan") return "Lifetime required before snapshots can be saved.";
+  return "No new snapshot saved.";
+}
+
+function setSnapshotStatus(msg, cls, details = "") {
+  setStatusElement(els.snapshotsStatus, msg, cls, details);
 }
 
 async function refreshSyncStatus(sync) {

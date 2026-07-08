@@ -8,6 +8,7 @@ import { installAutoTriage } from "../lib/auto_triage.js";
 import { installBadge, updateBadge, applyTriageRunning } from "../lib/badge.js";
 import { installSleepStale } from "../lib/sleep_stale.js";
 import { installSessionSync } from "../lib/session_sync.js";
+import { installSessionSnapshots } from "../lib/session_snapshots.js";
 import { runManualTriage } from "../lib/manual_triage.js";
 import { readPopupTriageState, startPopupTriage } from "../lib/popup_triage.js";
 import { formatApplyFailureMessage, restoreSession } from "../lib/actions.js";
@@ -29,6 +30,7 @@ installAutoTriage();
 installBadge();
 installSleepStale();
 installSessionSync();
+installSessionSnapshots();
 
 chrome.runtime.onInstalled.addListener(details => {
   if (details.reason !== "install") return;
