@@ -11,6 +11,14 @@ import { installSessionSync } from "../lib/session_sync.js";
 import { runManualTriage } from "../lib/manual_triage.js";
 import { readPopupTriageState, startPopupTriage } from "../lib/popup_triage.js";
 import { formatApplyFailureMessage, restoreSession } from "../lib/actions.js";
+import {
+  BACKGROUND_FEATURES,
+  STATUS_LEVELS,
+  clearBackgroundFeatureStatus,
+  recordBackgroundFeatureStatus,
+} from "../lib/background_status.js";
+
+const SHORTCUT_FALLBACK_NOTIFICATION_PREFIX = "tt-shortcut-fallback:";
 
 if (billingEnabled()) {
   getExtPay().startBackground();
@@ -37,11 +45,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 chrome.commands.onCommand.addListener(async cmd => {
   if (cmd === "open-popup" || cmd === "search-tabs") {
-    try {
-      await chrome.action.openPopup();
-    } catch {
-      // openPopup() may be unavailable in some contexts; fall back silently.
-    }
+    await openPopupForCommand(cmd);
     return;
   }
   if (cmd === "triage-now") {
@@ -68,12 +72,102 @@ chrome.commands.onCommand.addListener(async cmd => {
   }
 });
 
+chrome.notifications.onClicked.addListener(notificationId => {
+  if (!isShortcutFallbackNotification(notificationId)) return;
+  openShortcutFallbackSettings(notificationId).catch(() => {});
+});
+
+chrome.notifications.onButtonClicked.addListener(notificationId => {
+  if (!isShortcutFallbackNotification(notificationId)) return;
+  openShortcutFallbackSettings(notificationId).catch(() => {});
+});
+
 async function openOnboardingSettings() {
   try {
     await chrome.runtime.openOptionsPage();
   } catch {
     await chrome.tabs.create({ url: chrome.runtime.getURL("options/options.html") });
   }
+}
+
+async function openPopupForCommand(cmd) {
+  try {
+    if (!chrome.action?.openPopup) {
+      throw new Error("chrome.action.openPopup is unavailable in this browser context.");
+    }
+    await chrome.action.openPopup();
+    await clearBackgroundFeatureStatus(BACKGROUND_FEATURES.SHORTCUTS).catch(() => {});
+  } catch (e) {
+    await handlePopupShortcutFallback(cmd, e);
+  }
+}
+
+async function handlePopupShortcutFallback(cmd, error) {
+  const command = shortcutCommandInfo(cmd);
+  const status = await recordBackgroundFeatureStatus(BACKGROUND_FEATURES.SHORTCUTS, {
+    level: STATUS_LEVELS.WARNING,
+    title: "Shortcut could not open popup",
+    message: `${command.label} could not open the popup from this Chrome shortcut.`,
+    guidance: "Use the toolbar icon, or open Settings to review shortcuts and fallback steps.",
+    code: "open_popup_unavailable",
+    details: error?.message ?? String(error ?? ""),
+    meta: { command: cmd },
+  }).catch(() => null);
+
+  try {
+    await notifyShortcutFallback(cmd, status);
+  } catch {
+    await openShortcutSettings().catch(() => {});
+  }
+}
+
+async function notifyShortcutFallback(cmd, status) {
+  const command = shortcutCommandInfo(cmd);
+  const message = status
+    ? notificationMessageForShortcutStatus(status)
+    : `${command.label} could not open the popup from this shortcut. Open Settings to review shortcuts.`;
+  await chrome.notifications.create(`${SHORTCUT_FALLBACK_NOTIFICATION_PREFIX}${cmd}`, {
+    type: "basic",
+    iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+    title: "Tab Triage AI shortcut needs attention",
+    message,
+    priority: 1,
+    buttons: [{ title: "Open Settings" }],
+  });
+}
+
+async function openShortcutFallbackSettings(notificationId) {
+  await chrome.notifications.clear(notificationId).catch(() => {});
+  await openShortcutSettings();
+}
+
+async function openShortcutSettings() {
+  const url = chrome.runtime.getURL("options/options.html#section-shortcuts");
+  try {
+    await chrome.tabs.create({ url });
+  } catch {
+    await chrome.runtime.openOptionsPage();
+  }
+}
+
+function isShortcutFallbackNotification(notificationId) {
+  return String(notificationId ?? "").startsWith(SHORTCUT_FALLBACK_NOTIFICATION_PREFIX);
+}
+
+function shortcutCommandInfo(cmd) {
+  switch (cmd) {
+    case "search-tabs":
+      return { label: "Search tabs and sessions" };
+    case "open-popup":
+      return { label: "Open Tab Triage AI" };
+    default:
+      return { label: "The shortcut" };
+  }
+}
+
+function notificationMessageForShortcutStatus(status) {
+  const msg = [status.message, status.guidance].filter(Boolean).join(" ");
+  return msg.length > 180 ? `${msg.slice(0, 177)}...` : msg;
 }
 
 function formatManualTriageNotification({ groups, candidates, totalCandidates, cap, applySummary }) {
