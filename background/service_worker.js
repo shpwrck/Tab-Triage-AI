@@ -10,7 +10,7 @@ import { installSleepStale } from "../lib/sleep_stale.js";
 import { installSessionSync } from "../lib/session_sync.js";
 import { runManualTriage } from "../lib/manual_triage.js";
 import { readPopupTriageState, startPopupTriage } from "../lib/popup_triage.js";
-import { formatApplyFailureMessage } from "../lib/actions.js";
+import { formatApplyFailureMessage, restoreSession } from "../lib/actions.js";
 
 if (billingEnabled()) {
   getExtPay().startBackground();
@@ -115,8 +115,8 @@ function formatManualTriageNotification({ groups, candidates, totalCandidates, c
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "restore-session") {
-    restoreSession(msg.urls).then(
-      win => sendResponse({ ok: true, windowId: win?.id ?? null }),
+    restoreSession({ urls: msg.urls, groups: msg.groups, windowId: msg.windowId }).then(
+      result => sendResponse({ ok: true, windowId: result?.windowId ?? null }),
       err => sendResponse({ ok: false, error: String(err?.message ?? err) }),
     );
     return true;
@@ -150,8 +150,3 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 });
-
-async function restoreSession(urls) {
-  if (!urls?.length) throw new Error("No URLs to restore");
-  return chrome.windows.create({ url: urls, focused: true });
-}

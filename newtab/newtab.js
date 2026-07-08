@@ -704,16 +704,16 @@ async function onSessionAction(action, id, sessions) {
   const s = sessions.find(x => x.id === id);
   if (!s) return;
   if (action === "restore-here" || action === "restore-new") {
-    const urls = s.groups.flatMap(g => g.tabs.map(t => t.url));
-    if (!urls.length) return;
+    const tabCount = sessionTabCount(s);
+    if (!tabCount) return;
     try {
       if (action === "restore-here") {
         const win = await chrome.windows.getCurrent();
-        await restoreSession({ urls, windowId: win.id });
-        setHeroStatus(`Opened "${s.title}" in this window (${urls.length} tabs).`, "ok");
+        await restoreSession({ groups: s.groups, windowId: win.id });
+        setHeroStatus(`Opened "${s.title}" in this window (${tabCount} tabs).`, "ok");
       } else {
-        await restoreSession({ urls });
-        setHeroStatus(`Opened "${s.title}" in a new window (${urls.length} tabs).`, "ok");
+        await restoreSession({ groups: s.groups });
+        setHeroStatus(`Opened "${s.title}" in a new window (${tabCount} tabs).`, "ok");
       }
     } catch (e) {
       setHeroStatus(`Restore failed: ${e.message ?? e}`, "err");
@@ -910,6 +910,12 @@ function sessionToMarkdown(s) {
     out += `\n`;
   }
   return out;
+}
+
+function sessionTabCount(session) {
+  return (session?.groups ?? []).reduce((count, group) => (
+    count + (group?.tabs ?? []).filter(tab => typeof tab?.url === "string" && tab.url.trim()).length
+  ), 0);
 }
 
 function hideBrokenFavicons(root) {
