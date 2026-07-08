@@ -13,7 +13,9 @@ import {
   applyAllAsTabGroups,
   closeGroup,
   closeOneTab,
+  formatApplyFailureMessage,
   restoreSession,
+  summarizeApplyResults,
 } from "../lib/actions.js";
 import { POPUP_TRIAGE_STATE_KEY, readPopupTriageState } from "../lib/popup_triage.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
@@ -530,9 +532,12 @@ async function onApplyAll() {
   const original = els.applyAll.textContent;
   els.applyAll.textContent = "Applying…";
   try {
-    await applyAllAsTabGroups({ groups });
-    for (const g of groups) g.status = "grouped";
+    const applyResults = await applyAllAsTabGroups({ groups });
+    const applySummary = summarizeApplyResults({ groups, results: applyResults });
+    for (const entry of applySummary.successes) entry.group.status = "grouped";
     renderGroups();
+    if (applySummary.failedGroupCount) showError(formatApplyFailureMessage(applySummary));
+    else hideError();
   } catch (e) {
     showError(`Couldn't apply all: ${e.message ?? e}`);
   } finally {
