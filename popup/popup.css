@@ -269,6 +269,9 @@ button.small { padding: 5px 10px; font-size: 12px; }
 .search-list li:focus-within {
   background: var(--surface-2);
 }
+.search-session-result {
+  align-items: stretch;
+}
 .search-result-button {
   appearance: none;
   border: 0;
@@ -325,6 +328,16 @@ button.small { padding: 5px 10px; font-size: 12px; }
   flex-shrink: 0;
   margin-right: 6px;
 }
+.search-session-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-right: 6px;
+}
+.search-session-actions .search-aux {
+  margin-right: 0;
+}
 .search-list li:hover .search-aux,
 .search-list li:focus-within .search-aux,
 .search-list li.is-active .search-aux {
@@ -332,6 +345,10 @@ button.small { padding: 5px 10px; font-size: 12px; }
   border-color: var(--border);
 }
 .search-aux:hover { background: var(--accent-2-soft); color: var(--accent-2-strong); }
+.search-aux:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
 
 .tab-list {
   list-style: none;
