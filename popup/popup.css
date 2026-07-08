@@ -182,6 +182,22 @@ button.small { padding: 5px 10px; font-size: 12px; }
   margin-bottom: 6px;
 }
 
+.picker-cap {
+  margin: 0 0 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.picker-cap.is-capped {
+  border-color: var(--accent-2);
+  background: var(--accent-2-soft);
+  color: var(--text);
+}
+
 .checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
 .checkbox input { accent-color: var(--accent); }
 
@@ -317,6 +333,23 @@ button.small { padding: 5px 10px; font-size: 12px; }
   white-space: nowrap;
 }
 .tab-list .host { color: var(--muted); font-size: 11px; flex-shrink: 0; max-width: 100px; overflow: hidden; text-overflow: ellipsis; }
+.tab-list li.cap-excluded {
+  background: var(--surface);
+  color: var(--muted);
+}
+.tab-list li.cap-excluded .title,
+.tab-list li.cap-excluded .host {
+  color: var(--muted);
+}
+.cap-chip {
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 1px 6px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
 
 .group-chip {
   font-size: 10px;
@@ -497,6 +530,16 @@ button.small { padding: 5px 10px; font-size: 12px; }
   padding: 8px 10px;
   border-radius: var(--radius);
   font-size: 12px;
+}
+
+.notice {
+  background: var(--accent-2-soft);
+  border: 1px solid var(--accent-2);
+  color: var(--accent-2-strong);
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .alert-section {

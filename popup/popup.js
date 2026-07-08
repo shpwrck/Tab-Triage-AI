@@ -1,6 +1,7 @@
 import {
   getSettings,
   checkQuota,
+  tabLimit,
   listSessions,
   saveSession,
   deleteSession,
@@ -35,13 +36,16 @@ const els = {
   searchTabsCount: $("#search-tabs-count"),
   searchSessionsCount: $("#search-sessions-count"),
   searchEmpty: $("#search-empty"),
+  statusNotice: $("#status-notice"),
   picker: $("#picker"),
   result: $("#result"),
   sessions: $("#sessions"),
   tabList: $("#tab-list"),
   tabCount: $("#tab-count"),
+  pickerCap: $("#picker-cap"),
   selectAll: $("#select-all"),
   groups: $("#groups"),
+  resultNotice: $("#result-notice"),
   sessionList: $("#session-list"),
   triage: $("#triage"),
   back: $("#back"),
@@ -74,6 +78,8 @@ const state = {
   dupeData: { duplicates: [], totalRedundant: 0 },
   searchItems: [], // { element, activate }
   activeSearchIndex: -1,
+  plan: "free",
+  triageTabLimit: Infinity,
 };
 
 async function init() {
@@ -160,16 +166,23 @@ async function loadCurrentWindowTabs() {
 
 function renderTabs() {
   els.tabList.innerHTML = "";
+  const cappedTabIds = cappedSelectedTabIds();
   for (const t of state.tabs) {
     const li = document.createElement("li");
+    li.dataset.id = String(t.id);
+    if (cappedTabIds.has(t.id)) li.classList.add("cap-excluded");
     const groupChip = t.groupId
       ? `<span class="group-chip" data-color="${escapeAttr(t.groupColor || "grey")}" title="In Chrome tab group: ${escapeAttr(t.groupTitle || "Untitled")}">${escape(t.groupTitle || "in group")}</span>`
+      : "";
+    const capChip = cappedTabIds.has(t.id)
+      ? `<span class="cap-chip" title="${escapeAttr(capExcludedTitle())}">Not sent</span>`
       : "";
     li.innerHTML = `
       <input type="checkbox" ${t.checked ? "checked" : ""} data-id="${t.id}" />
       <img class="favicon" src="${escapeAttr(t.favIconUrl || "")}" />
       <span class="title" title="${escapeAttr(t.title)}">${escape(t.title)}</span>
       ${groupChip}
+      ${capChip}
       <span class="host">${escape(t.host)}</span>
     `;
     li.querySelector("input").addEventListener("change", e => {
@@ -177,15 +190,84 @@ function renderTabs() {
       const tab = state.tabs.find(x => x.id === id);
       if (tab) tab.checked = e.target.checked;
       syncSelectAll();
+      renderPickerSummary();
+      refreshCapMarkers();
     });
     els.tabList.appendChild(li);
   }
   hideBrokenFavicons(els.tabList);
-  const grouped = state.tabs.filter(t => t.groupId).length;
-  els.tabCount.textContent = grouped > 0
-    ? `${state.tabs.length} tabs · ${grouped} already grouped`
-    : `${state.tabs.length} tabs`;
+  renderPickerSummary();
   syncSelectAll();
+}
+
+function selectedTabs() {
+  return state.tabs.filter(t => t.checked);
+}
+
+function freeTabLimit() {
+  if (state.plan === "lifetime") return Infinity;
+  return Number.isFinite(state.triageTabLimit) ? state.triageTabLimit : Infinity;
+}
+
+function cappedSelectedTabIds() {
+  const limit = freeTabLimit();
+  if (!Number.isFinite(limit)) return new Set();
+  return new Set(selectedTabs().slice(limit).map(t => t.id));
+}
+
+function capExcludedTitle() {
+  const limit = freeTabLimit();
+  return Number.isFinite(limit)
+    ? `Free plan sends the first ${limit} selected tabs. This tab is outside that cap.`
+    : "";
+}
+
+function refreshCapMarkers() {
+  const cappedTabIds = cappedSelectedTabIds();
+  const title = capExcludedTitle();
+  els.tabList.querySelectorAll("li[data-id]").forEach(li => {
+    const id = Number(li.dataset.id);
+    const isCapped = cappedTabIds.has(id);
+    li.classList.toggle("cap-excluded", isCapped);
+    let chip = li.querySelector(".cap-chip");
+    if (isCapped && !chip) {
+      chip = document.createElement("span");
+      chip.className = "cap-chip";
+      chip.textContent = "Not sent";
+      chip.title = title;
+      li.insertBefore(chip, li.querySelector(".host"));
+    } else if (isCapped) {
+      chip.title = title;
+    } else if (chip) {
+      chip.remove();
+    }
+  });
+}
+
+function renderPickerSummary() {
+  const grouped = state.tabs.filter(t => t.groupId).length;
+  const selected = selectedTabs().length;
+  const parts = [`${state.tabs.length} tabs`, `${selected} selected`];
+  if (grouped > 0) parts.push(`${grouped} already grouped`);
+  els.tabCount.textContent = parts.join(" · ");
+  renderPickerCap(selected);
+}
+
+function renderPickerCap(selectedCount = selectedTabs().length) {
+  const limit = freeTabLimit();
+  if (!Number.isFinite(limit) || state.tabs.length === 0) {
+    els.pickerCap.classList.add("hidden");
+    els.pickerCap.textContent = "";
+    els.pickerCap.classList.remove("is-capped");
+    return;
+  }
+
+  const skipped = Math.max(0, selectedCount - limit);
+  els.pickerCap.classList.toggle("is-capped", skipped > 0);
+  els.pickerCap.textContent = skipped > 0
+    ? `Free plan sends the first ${limit} selected tabs; ${skipped} selected ${plural(skipped, "tab")} will stay out of this triage. Buy lifetime for unlimited.`
+    : `Free plan: ${selectedCount} selected of ${limit} tabs per triage.`;
+  els.pickerCap.classList.remove("hidden");
 }
 
 // MV3 CSP forbids inline event handlers, so we wire favicon error handling
@@ -211,6 +293,10 @@ function syncSelectAll() {
 
 async function refreshQuotaBadge() {
   const settings = await getSettings();
+  state.plan = settings.plan === "lifetime" ? "lifetime" : "free";
+  state.triageTabLimit = tabLimit(settings);
+  renderPickerSummary();
+  refreshCapMarkers();
   const q = await checkQuota(settings);
   els.quota.innerHTML = "";
   if (settings.plan === "lifetime") {
@@ -229,6 +315,8 @@ async function refreshQuotaBadge() {
 
 async function onTriage() {
   hideError();
+  hideStatusNotice();
+  hideResultNotice();
   const settings = await getSettings();
   if (!settings.llm?.apiKey) {
     showError("Add an API key in Settings first.");
@@ -287,21 +375,25 @@ async function applyPopupTriageState(nextState) {
   if (!nextState) return;
   if (nextState.status === "running") {
     setBusy(true);
-    showError("Triage is still running. You can close this popup.");
+    hideError();
+    showStatusNotice(nextState.notice || "Triage is still running. You can close this popup.");
     return;
   }
 
   setBusy(false);
   if (nextState.status === "success") {
     state.lastResult = { groups: nextState.groups ?? [] };
-    if (nextState.notice) showError(nextState.notice);
-    else hideError();
+    hideError();
+    hideStatusNotice();
     showResult();
+    showResultNotice(nextState.notice);
     await refreshQuotaBadge();
     return;
   }
 
   if (nextState.status === "error") {
+    hideStatusNotice();
+    hideResultNotice();
     showPicker();
     showError(nextState.error || "Triage failed.");
   }
@@ -362,6 +454,8 @@ function showPicker() {
   els.result.classList.add("hidden");
   els.sessions.classList.add("hidden");
   els.picker.classList.remove("hidden");
+  hideStatusNotice();
+  hideResultNotice();
   renderStaleTabs().catch(() => {});
   renderDupeTabs().catch(() => {});
 }
@@ -371,6 +465,8 @@ async function showSessions() {
   els.picker.classList.add("hidden");
   els.staleSection.classList.add("hidden");
   els.dupesSection.classList.add("hidden");
+  hideStatusNotice();
+  hideResultNotice();
   els.sessions.classList.remove("hidden");
   await renderSessions();
 }
@@ -714,12 +810,42 @@ function setBusy(busy) {
 }
 
 function showError(msg) {
+  hideStatusNotice();
+  hideResultNotice();
   els.error.textContent = msg;
   els.error.classList.remove("hidden");
 }
 function hideError() {
   els.error.classList.add("hidden");
   els.error.textContent = "";
+}
+
+function showStatusNotice(msg) {
+  if (!msg) {
+    hideStatusNotice();
+    return;
+  }
+  els.statusNotice.textContent = msg;
+  els.statusNotice.classList.remove("hidden");
+}
+
+function hideStatusNotice() {
+  els.statusNotice.classList.add("hidden");
+  els.statusNotice.textContent = "";
+}
+
+function showResultNotice(msg) {
+  if (!msg) {
+    hideResultNotice();
+    return;
+  }
+  els.resultNotice.textContent = msg;
+  els.resultNotice.classList.remove("hidden");
+}
+
+function hideResultNotice() {
+  els.resultNotice.classList.add("hidden");
+  els.resultNotice.textContent = "";
 }
 
 function flashButton(btn, text) {
@@ -1255,6 +1381,10 @@ function escape(s) {
 }
 function escapeAttr(s) {
   return escape(s).replace(/"/g, "&quot;");
+}
+
+function plural(count, singular, pluralForm = `${singular}s`) {
+  return count === 1 ? singular : pluralForm;
 }
 
 init().catch(e => showError(`Init error: ${e.message ?? e}`));
