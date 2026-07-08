@@ -203,6 +203,7 @@ function renderTabs() {
     const li = document.createElement("li");
     li.dataset.id = String(t.id);
     if (cappedTabIds.has(t.id)) li.classList.add("cap-excluded");
+    const checkboxId = `tab-picker-${t.id}`;
     const groupChip = t.groupId
       ? `<span class="group-chip" data-color="${escapeAttr(t.groupColor || "grey")}" title="In Chrome tab group: ${escapeAttr(t.groupTitle || "Untitled")}">${escape(t.groupTitle || "in group")}</span>`
       : "";
@@ -210,9 +211,9 @@ function renderTabs() {
       ? `<span class="cap-chip" title="${escapeAttr(capExcludedTitle())}">Not sent</span>`
       : "";
     li.innerHTML = `
-      <input type="checkbox" ${t.checked ? "checked" : ""} data-id="${t.id}" />
-      <img class="favicon" src="${escapeAttr(t.favIconUrl || "")}" />
-      <span class="title" title="${escapeAttr(t.title)}">${escape(t.title)}</span>
+      <input type="checkbox" id="${checkboxId}" ${t.checked ? "checked" : ""} data-id="${t.id}" aria-label="Select tab: ${escapeAttr(t.title)}" />
+      <img class="favicon" src="${escapeAttr(t.favIconUrl || "")}" alt="" />
+      <label class="title" for="${checkboxId}" title="${escapeAttr(t.title)}">${escape(t.title)}</label>
       ${groupChip}
       ${capChip}
       <span class="host">${escape(t.host)}</span>
@@ -732,11 +733,11 @@ async function renderSessions() {
       </div>
       <div class="session-title">${escape(s.title)}</div>
       <div class="session-actions">
-        <button data-action="restore-here" data-id="${s.id}" class="primary">Open here</button>
-        <button data-action="restore-new" data-id="${s.id}">New window</button>
-        <button data-action="copy" data-id="${s.id}">Copy Markdown</button>
-        <button data-action="notion" data-id="${s.id}">Send to Notion</button>
-        <button data-action="delete" data-id="${s.id}">Delete</button>
+        <button data-action="restore-here" data-id="${s.id}" class="primary" aria-label="Open saved session here: ${escapeAttr(s.title)}">Open here</button>
+        <button data-action="restore-new" data-id="${s.id}" aria-label="Open saved session in a new window: ${escapeAttr(s.title)}">New window</button>
+        <button data-action="copy" data-id="${s.id}" aria-label="Copy saved session as Markdown: ${escapeAttr(s.title)}">Copy Markdown</button>
+        <button data-action="notion" data-id="${s.id}" aria-label="Send saved session to Notion: ${escapeAttr(s.title)}">Send to Notion</button>
+        <button data-action="delete" data-id="${s.id}" aria-label="Delete saved session: ${escapeAttr(s.title)}">Delete</button>
       </div>
     `;
     els.sessionList.appendChild(li);
@@ -1063,16 +1064,17 @@ function renderSearchTabs(tabs) {
   for (const t of tabs) {
     const li = document.createElement("li");
     const activate = () => switchToTab(t);
-    li.setAttribute("role", "button");
-    li.tabIndex = -1;
     li.innerHTML = `
-      <img class="favicon" src="${escapeAttr(t.favIconUrl || "")}" />
-      <span class="title" title="${escapeAttr(t.title || t.url)}">${escape(t.title || t.url)}</span>
-      <span class="host">${escape(safeHost(t.url))}</span>
+      <button type="button" class="search-result-button" aria-label="Switch to tab: ${escapeAttr(t.title || t.url)}">
+        <img class="favicon" src="${escapeAttr(t.favIconUrl || "")}" alt="" />
+        <span class="title" title="${escapeAttr(t.title || t.url)}">${escape(t.title || t.url)}</span>
+        <span class="host">${escape(safeHost(t.url))}</span>
+      </button>
     `;
-    li.addEventListener("click", activate);
+    const button = li.querySelector(".search-result-button");
+    button.addEventListener("click", activate);
     els.searchTabList.appendChild(li);
-    items.push({ element: li, activate });
+    items.push({ element: button, activate });
   }
   hideBrokenFavicons(els.searchTabList);
   return items;
@@ -1089,13 +1091,13 @@ function renderSearchSessions(sessions) {
   for (const s of sessions) {
     const totalTabs = s.groups.reduce((n, g) => n + g.tabs.length, 0);
     const li = document.createElement("li");
-    li.setAttribute("role", "button");
-    li.tabIndex = -1;
     li.innerHTML = `
-      <span class="title" title="${escapeAttr(s.title)}">${escape(s.title)}</span>
-      <span class="badge">${totalTabs} tabs</span>
-      <span class="host">${escape(new Date(s.createdAt).toLocaleDateString())}</span>
-      <button class="search-aux" title="Open in a new window" aria-label="Open session in a new window">↗</button>
+      <button type="button" class="search-result-button" aria-label="Open saved session here: ${escapeAttr(s.title)}">
+        <span class="title" title="${escapeAttr(s.title)}">${escape(s.title)}</span>
+        <span class="badge">${totalTabs} tabs</span>
+        <span class="host">${escape(new Date(s.createdAt).toLocaleDateString())}</span>
+      </button>
+      <button type="button" class="search-aux" title="Open in a new window" aria-label="Open saved session in a new window: ${escapeAttr(s.title)}">New window</button>
     `;
     const tabCount = sessionTabCount(s);
     const restoreHere = async () => {
@@ -1117,16 +1119,14 @@ function renderSearchSessions(sessions) {
         showError(`Restore failed: ${e.message ?? e}`);
       }
     };
-    li.addEventListener("click", async ev => {
-      if (ev.target.classList.contains("search-aux")) return; // handled below
-      await restoreHere();
-    });
+    const mainButton = li.querySelector(".search-result-button");
+    mainButton.addEventListener("click", restoreHere);
     li.querySelector(".search-aux").addEventListener("click", async ev => {
       ev.stopPropagation();
       await restoreNewWindow();
     });
     els.searchSessionList.appendChild(li);
-    items.push({ element: li, activate: restoreHere });
+    items.push({ element: mainButton, activate: restoreHere });
   }
   return items;
 }
