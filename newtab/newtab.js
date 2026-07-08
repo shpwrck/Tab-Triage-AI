@@ -59,8 +59,29 @@ const els = {
   sessionsEmpty: $("#sessions-empty"),
 };
 
+async function shouldShowNewTabDashboard() {
+  try {
+    const settings = await getSettings();
+    return settings.newtab?.enabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+function revealNewTabDashboard() {
+  document.body.style.visibility = "";
+}
+
 async function init() {
-  await applyStoredTheme();
+  if (!await shouldShowNewTabDashboard()) {
+    window.location.replace("about:blank");
+    return;
+  }
+  try {
+    await applyStoredTheme();
+  } finally {
+    revealNewTabDashboard();
+  }
   watchThemeChanges();
   els.openSettings.addEventListener("click", openSettings);
   els.setupOpenSettings.addEventListener("click", openSettings);
@@ -80,6 +101,10 @@ async function init() {
   // Live-update when the auto-triage or popup writes a new cache.
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
+    if (changes.tt_settings?.newValue?.newtab?.enabled === false) {
+      window.location.replace("about:blank");
+      return;
+    }
     if (changes.tt_settings) renderSetupState().catch(() => {});
     if (changes.tt_last_triage) renderLatest().catch(() => {});
     if (changes.tt_sessions && !isOwnNoteAutosaveChange(changes.tt_sessions)) {
