@@ -409,8 +409,37 @@ button.small { padding: 5px 10px; font-size: 12px; }
   margin-bottom: 8px;
 }
 .result-head h2 { margin: 0; font-size: 13px; font-weight: 600; }
-.result-actions { display: flex; gap: 4px; }
-.result-actions button { padding: 4px 8px; font-size: 11px; }
+.result-head--triage {
+  align-items: stretch;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.result-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.result-title-row h2 { flex: 1; min-width: 0; }
+.result-title-row #apply-all {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.result-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.result-actions button {
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
 
 .group {
   background: var(--surface);
