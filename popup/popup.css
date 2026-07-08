@@ -236,7 +236,23 @@ button.small { padding: 5px 10px; font-size: 12px; }
   font-size: 12px;
 }
 .search-list li:last-child { border-bottom: none; }
-.search-list li:hover { background: var(--surface-2); }
+.search-list li:hover,
+.search-list li:focus-visible,
+.search-list li.is-active {
+  background: var(--surface-2);
+}
+.search-list li:focus { outline: none; }
+.search-list li:focus-visible,
+.search-list li.is-active {
+  box-shadow: inset 0 0 0 2px var(--accent-2);
+}
+.search-list li[aria-disabled="true"] {
+  cursor: default;
+  box-shadow: none;
+}
+.search-list li[aria-disabled="true"]:hover {
+  background: transparent;
+}
 .search-list .favicon { width: 14px; height: 14px; flex-shrink: 0; border-radius: 2px; }
 .search-list .title {
   flex: 1;
@@ -264,7 +280,12 @@ button.small { padding: 5px 10px; font-size: 12px; }
   cursor: pointer;
   flex-shrink: 0;
 }
-.search-list li:hover .search-aux { color: var(--text); border-color: var(--border); }
+.search-list li:hover .search-aux,
+.search-list li:focus-within .search-aux,
+.search-list li.is-active .search-aux {
+  color: var(--text);
+  border-color: var(--border);
+}
 .search-aux:hover { background: var(--accent-2-soft); color: var(--accent-2-strong); }
 
 .tab-list {

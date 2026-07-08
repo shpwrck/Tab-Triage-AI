@@ -72,6 +72,8 @@ const state = {
   lastResult: null, // { groups, tabsById }
   staleTabs: [],
   dupeData: { duplicates: [], totalRedundant: 0 },
+  searchItems: [], // { element, activate }
+  activeSearchIndex: -1,
 };
 
 async function init() {
@@ -93,6 +95,9 @@ async function init() {
     renderTabs();
   });
   els.search.addEventListener("input", onSearchInput);
+  els.search.addEventListener("keydown", onSearchKeydown);
+  els.searchResults.addEventListener("keydown", onSearchKeydown);
+  els.searchResults.addEventListener("focusin", onSearchResultFocus);
   els.staleCloseAll.addEventListener("click", onCloseAllStale);
   els.staleArchiveAll.addEventListener("click", onArchiveAllStale);
   els.dupesCloseAll.addEventListener("click", onCloseAllDupes);
@@ -764,16 +769,61 @@ class GateError extends Error {
 }
 
 let _searchDebounce = null;
+let _searchRunId = 0;
 function onSearchInput(e) {
   if (_searchDebounce) clearTimeout(_searchDebounce);
   const q = e.target.value;
   _searchDebounce = setTimeout(() => runSearch(q), 90);
 }
 
+function onSearchKeydown(e) {
+  const fromResults = e.currentTarget === els.searchResults;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if (!isSearchOpen()) return;
+    e.preventDefault();
+    if (!fromResults && state.searchItems.length) {
+      setSearchActiveIndex(state.activeSearchIndex >= 0 ? state.activeSearchIndex : 0, {
+        focus: true,
+        scroll: true,
+      });
+      return;
+    }
+    moveSearchSelection(e.key === "ArrowDown" ? 1 : -1, { focus: fromResults });
+    return;
+  }
+
+  if (e.key === "Enter") {
+    if (!isSearchOpen() || e.target.closest?.(".search-aux")) return;
+    if (state.activeSearchIndex < 0) return;
+    e.preventDefault();
+    activateSearchItem();
+    return;
+  }
+
+  if (e.key === " " && fromResults && !e.target.closest?.(".search-aux")) {
+    if (state.activeSearchIndex < 0) return;
+    e.preventDefault();
+    activateSearchItem();
+    return;
+  }
+
+  if (e.key === "Escape" && (isSearchOpen() || els.search.value)) {
+    e.preventDefault();
+    clearSearch();
+  }
+}
+
+function onSearchResultFocus(e) {
+  const row = e.target.closest?.("[data-search-index]");
+  if (!row) return;
+  setSearchActiveIndex(Number(row.dataset.searchIndex));
+}
+
 async function runSearch(q) {
+  const runId = ++_searchRunId;
   const query = (q ?? "").trim();
   if (!query) {
-    els.searchResults.classList.add("hidden");
+    closeSearchResults();
     showPicker();
     return;
   }
@@ -783,6 +833,7 @@ async function runSearch(q) {
   els.staleSection.classList.add("hidden");
   els.dupesSection.classList.add("hidden");
   els.searchResults.classList.remove("hidden");
+  els.search.setAttribute("aria-expanded", "true");
 
   // Tabs: across every window. Fuzzy-scored against "title url".
   const allTabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
@@ -815,50 +866,63 @@ async function runSearch(q) {
     .slice(0, 10)
     .map(({ session }) => session);
 
-  renderSearchTabs(tabHits);
-  renderSearchSessions(sessionHits);
+  if (runId !== _searchRunId || query !== els.search.value.trim()) return;
+
+  const searchItems = [
+    ...renderSearchTabs(tabHits),
+    ...renderSearchSessions(sessionHits),
+  ];
   els.searchEmpty.classList.toggle("hidden", tabHits.length + sessionHits.length > 0);
+  setSearchItems(searchItems);
 }
 
 function renderSearchTabs(tabs) {
   els.searchTabsCount.textContent = tabs.length ? `(${tabs.length})` : "";
   if (!tabs.length) {
-    els.searchTabList.innerHTML = `<li class="muted" style="cursor:default; border:none;">No matching tabs.</li>`;
-    return;
+    els.searchTabList.innerHTML = `<li class="muted" style="cursor:default; border:none;" aria-disabled="true">No matching tabs.</li>`;
+    return [];
   }
   els.searchTabList.innerHTML = "";
+  const items = [];
   for (const t of tabs) {
     const li = document.createElement("li");
+    const activate = () => switchToTab(t);
+    li.setAttribute("role", "button");
+    li.tabIndex = -1;
     li.innerHTML = `
       <img class="favicon" src="${escapeAttr(t.favIconUrl || "")}" />
       <span class="title" title="${escapeAttr(t.title || t.url)}">${escape(t.title || t.url)}</span>
       <span class="host">${escape(safeHost(t.url))}</span>
     `;
-    li.addEventListener("click", () => switchToTab(t));
+    li.addEventListener("click", activate);
     els.searchTabList.appendChild(li);
+    items.push({ element: li, activate });
   }
   hideBrokenFavicons(els.searchTabList);
+  return items;
 }
 
 function renderSearchSessions(sessions) {
   els.searchSessionsCount.textContent = sessions.length ? `(${sessions.length})` : "";
   if (!sessions.length) {
-    els.searchSessionList.innerHTML = `<li class="muted" style="cursor:default; border:none;">No matching sessions.</li>`;
-    return;
+    els.searchSessionList.innerHTML = `<li class="muted" style="cursor:default; border:none;" aria-disabled="true">No matching sessions.</li>`;
+    return [];
   }
   els.searchSessionList.innerHTML = "";
+  const items = [];
   for (const s of sessions) {
     const totalTabs = s.groups.reduce((n, g) => n + g.tabs.length, 0);
     const li = document.createElement("li");
+    li.setAttribute("role", "button");
+    li.tabIndex = -1;
     li.innerHTML = `
       <span class="title" title="${escapeAttr(s.title)}">${escape(s.title)}</span>
       <span class="badge">${totalTabs} tabs</span>
       <span class="host">${escape(new Date(s.createdAt).toLocaleDateString())}</span>
-      <button class="search-aux" title="Open in a new window">↗</button>
+      <button class="search-aux" title="Open in a new window" aria-label="Open session in a new window">↗</button>
     `;
     const urls = s.groups.flatMap(g => g.tabs.map(t => t.url));
-    li.addEventListener("click", async ev => {
-      if (ev.target.classList.contains("search-aux")) return; // handled below
+    const restoreHere = async () => {
       if (!urls.length) return;
       try {
         const win = await chrome.windows.getCurrent();
@@ -867,9 +931,8 @@ function renderSearchSessions(sessions) {
       } catch (e) {
         showError(`Restore failed: ${e.message ?? e}`);
       }
-    });
-    li.querySelector(".search-aux").addEventListener("click", async ev => {
-      ev.stopPropagation();
+    };
+    const restoreNewWindow = async () => {
       if (!urls.length) return;
       try {
         await restoreSession({ urls });
@@ -877,9 +940,86 @@ function renderSearchSessions(sessions) {
       } catch (e) {
         showError(`Restore failed: ${e.message ?? e}`);
       }
+    };
+    li.addEventListener("click", async ev => {
+      if (ev.target.classList.contains("search-aux")) return; // handled below
+      await restoreHere();
+    });
+    li.querySelector(".search-aux").addEventListener("click", async ev => {
+      ev.stopPropagation();
+      await restoreNewWindow();
     });
     els.searchSessionList.appendChild(li);
+    items.push({ element: li, activate: restoreHere });
   }
+  return items;
+}
+
+function isSearchOpen() {
+  return !els.searchResults.classList.contains("hidden");
+}
+
+function clearSearch() {
+  if (_searchDebounce) clearTimeout(_searchDebounce);
+  _searchDebounce = null;
+  _searchRunId++;
+  els.search.value = "";
+  closeSearchResults();
+  showPicker();
+  els.search.focus();
+}
+
+function closeSearchResults() {
+  els.searchResults.classList.add("hidden");
+  els.search.setAttribute("aria-expanded", "false");
+  els.search.removeAttribute("aria-activedescendant");
+  setSearchItems([]);
+}
+
+function setSearchItems(items) {
+  state.searchItems = items;
+  items.forEach((item, index) => {
+    item.element.id = `search-result-${index + 1}`;
+    item.element.dataset.searchIndex = String(index);
+    item.element.classList.remove("is-active");
+    item.element.tabIndex = -1;
+  });
+  setSearchActiveIndex(items.length ? 0 : -1);
+}
+
+function moveSearchSelection(delta, { focus = false } = {}) {
+  const total = state.searchItems.length;
+  if (!total) return;
+  const current = state.activeSearchIndex >= 0
+    ? state.activeSearchIndex
+    : (delta > 0 ? -1 : 0);
+  const next = (current + delta + total) % total;
+  setSearchActiveIndex(next, { focus, scroll: true });
+}
+
+function setSearchActiveIndex(index, { focus = false, scroll = false } = {}) {
+  state.activeSearchIndex = index;
+  state.searchItems.forEach((item, itemIndex) => {
+    const active = itemIndex === index;
+    item.element.classList.toggle("is-active", active);
+    item.element.tabIndex = active ? 0 : -1;
+  });
+
+  const activeItem = state.searchItems[index];
+  if (!activeItem) {
+    els.search.removeAttribute("aria-activedescendant");
+    return;
+  }
+
+  els.search.setAttribute("aria-activedescendant", activeItem.element.id);
+  if (scroll) activeItem.element.scrollIntoView({ block: "nearest" });
+  if (focus) activeItem.element.focus();
+}
+
+async function activateSearchItem() {
+  const item = state.searchItems[state.activeSearchIndex];
+  if (!item) return;
+  await item.activate();
 }
 
 async function switchToTab(tab) {
