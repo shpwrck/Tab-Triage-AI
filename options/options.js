@@ -636,7 +636,8 @@ async function onTest() {
   } catch (e) {
     if (testId !== latestLlmTestId) return;
     const msg = e instanceof LLMError ? e.message : `Network error: ${e.message ?? e}`;
-    setStatus(`Failed: ${msg}`, "err");
+    const details = e instanceof LLMError ? e.details : "";
+    setStatus(`Failed: ${msg}`, "err", details);
   }
 }
 
@@ -652,8 +653,9 @@ async function onWaitlist() {
   els.waitlistStatus.className = "status ok";
 }
 
-function setStatus(msg, cls) {
+function setStatus(msg, cls, details = "") {
   els.status.textContent = msg;
+  els.status.title = details;
   els.status.className = `status ${cls}`;
 }
 

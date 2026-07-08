@@ -344,7 +344,7 @@ async function onTriage() {
     await refreshQuotaBadge();
     await applyPopupTriageState(nextState);
   } catch (e) {
-    showError(e?.message ?? String(e));
+    showError(e?.message ?? String(e), e?.details ?? "");
   } finally {
     setBusy(false);
   }
@@ -368,7 +368,7 @@ async function syncPopupTriageState() {
   if (persistedState.status === "running") {
     waitForPopupTriageCompletion(persistedState.jobId)
       .then(applyPopupTriageState)
-      .catch(e => showError(e?.message ?? String(e)));
+      .catch(e => showError(e?.message ?? String(e), e?.details ?? ""));
   }
 }
 
@@ -396,7 +396,7 @@ async function applyPopupTriageState(nextState) {
     hideStatusNotice();
     hideResultNotice();
     showPicker();
-    showError(nextState.error || "Triage failed.");
+    showError(nextState.error || "Triage failed.", nextState.errorDetails || "");
   }
 }
 
@@ -810,15 +810,17 @@ function setBusy(busy) {
   els.triage.innerHTML = busy ? `<span class="spinner"></span>Triaging…` : `Triage tabs`;
 }
 
-function showError(msg) {
+function showError(msg, details = "") {
   hideStatusNotice();
   hideResultNotice();
   els.error.textContent = msg;
+  els.error.title = details;
   els.error.classList.remove("hidden");
 }
 function hideError() {
   els.error.classList.add("hidden");
   els.error.textContent = "";
+  els.error.title = "";
 }
 
 function showStatusNotice(msg) {
