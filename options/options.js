@@ -6,6 +6,14 @@ import { PROVIDERS, pingProvider, LLMError } from "../lib/llm/index.js";
 import { onSyncEnabledChange } from "../lib/session_sync.js";
 import { pingNotion, extractPageId, NotionError } from "../lib/notion.js";
 import { applyStoredTheme, applyTheme, watchThemeChanges } from "../lib/theme.js";
+import {
+  BACKGROUND_FEATURES,
+  BACKGROUND_STATUS_KEY,
+  STATUS_LEVELS,
+  clearBackgroundFeatureStatus,
+  formatBackgroundStatusMessage,
+  getBackgroundFeatureStatus,
+} from "../lib/background_status.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -114,6 +122,7 @@ async function init() {
   await initSync(settings);
   await initNotion(settings);
   await initDataSection();
+  watchBackgroundStatusChanges();
 }
 
 function initSectionNav() {
@@ -284,6 +293,7 @@ function setNotionStatus(msg, cls) {
 
 async function initSync(settings) {
   els.syncEnabled.checked = !!settings.sync?.enabled;
+  await refreshSyncStatus(settings.sync);
   els.syncEnabled.addEventListener("change", async () => {
     const enabled = els.syncEnabled.checked;
     await saveSettings({ sync: { enabled } });
@@ -291,15 +301,44 @@ async function initSync(settings) {
     els.syncStatus.className = "status";
     try {
       await onSyncEnabledChange(enabled);
-      els.syncStatus.textContent = enabled
-        ? "Sync enabled. Saved sessions will appear on other Chromes signed in to this account."
-        : "Sync disabled. Sessions stay local-only on this device.";
-      els.syncStatus.className = "status ok";
+      if (enabled) {
+        const hasStatus = await refreshSyncStatus({ enabled: true });
+        if (!hasStatus) {
+          els.syncStatus.textContent = "Sync enabled. Saved sessions will appear on other Chromes signed in to this account.";
+          els.syncStatus.className = "status ok";
+        }
+      } else {
+        els.syncStatus.textContent = "Sync disabled. Sessions stay local-only on this device.";
+        els.syncStatus.className = "status ok";
+      }
     } catch (e) {
-      els.syncStatus.textContent = `Sync error: ${e.message ?? e}`;
-      els.syncStatus.className = "status err";
+      const hasStatus = await refreshSyncStatus({ enabled: true });
+      if (!hasStatus) {
+        els.syncStatus.textContent = `Sync error: ${e.message ?? e}`;
+        els.syncStatus.className = "status err";
+      }
     }
   });
+}
+
+async function refreshSyncStatus(sync) {
+  if (!sync?.enabled) {
+    els.syncStatus.textContent = "";
+    els.syncStatus.title = "";
+    els.syncStatus.className = "status";
+    return false;
+  }
+  const status = await getBackgroundFeatureStatus(BACKGROUND_FEATURES.SESSION_SYNC);
+  if (!status) {
+    els.syncStatus.textContent = "";
+    els.syncStatus.title = "";
+    els.syncStatus.className = "status";
+    return false;
+  }
+  els.syncStatus.textContent = formatInlineBackgroundStatus(status);
+  els.syncStatus.title = status.details || "";
+  els.syncStatus.className = `status ${statusClass(status)}`;
+  return true;
 }
 
 function populateProviderOptions() {
@@ -480,11 +519,12 @@ async function initAutoTriage(settings) {
   els.autoMinTabs.value = String(at.minTabs);
   els.autoNotify.checked = !!at.notify;
   els.autoConfig.classList.toggle("hidden", !at.enabled);
-  refreshAutoStatus(at);
+  await refreshAutoStatus(at);
 
   els.autoEnabled.addEventListener("change", async () => {
     const enabled = els.autoEnabled.checked;
     await saveSettings({ autoTriage: { enabled } });
+    if (!enabled) await clearBackgroundFeatureStatus(BACKGROUND_FEATURES.AUTO_TRIAGE).catch(() => {});
     els.autoConfig.classList.toggle("hidden", !enabled);
     setAutoStatus(enabled ? "Auto-triage on." : "Auto-triage off.", "ok");
   });
@@ -502,7 +542,7 @@ async function initAutoTriage(settings) {
   els.pause1h.addEventListener("click", async () => {
     await pauseAutoTriage(60);
     const fresh = (await getSettings()).autoTriage;
-    refreshAutoStatus(fresh);
+    await refreshAutoStatus(fresh);
   });
   els.pauseTilTomorrow.addEventListener("click", async () => {
     const tomorrow = new Date();
@@ -511,17 +551,27 @@ async function initAutoTriage(settings) {
     const minutes = Math.ceil((tomorrow.getTime() - Date.now()) / 60_000);
     await pauseAutoTriage(minutes);
     const fresh = (await getSettings()).autoTriage;
-    refreshAutoStatus(fresh);
+    await refreshAutoStatus(fresh);
   });
   els.resume.addEventListener("click", async () => {
     await resumeAutoTriage();
     const fresh = (await getSettings()).autoTriage;
-    refreshAutoStatus(fresh);
+    await refreshAutoStatus(fresh);
   });
 }
 
-function refreshAutoStatus(at) {
-  if (at.pausedUntil && Date.now() < at.pausedUntil) {
+async function refreshAutoStatus(at) {
+  if (!at.enabled) {
+    setAutoStatus("", "");
+    els.resume.classList.add("hidden");
+    return;
+  }
+  const isPaused = at.pausedUntil && Date.now() < at.pausedUntil;
+  const status = await getBackgroundFeatureStatus(BACKGROUND_FEATURES.AUTO_TRIAGE);
+  if (status) {
+    setAutoStatus(formatInlineBackgroundStatus(status), statusClass(status), status.details || "");
+    els.resume.classList.toggle("hidden", !isPaused);
+  } else if (isPaused) {
     const when = new Date(at.pausedUntil);
     setAutoStatus(`Paused until ${when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`, "");
     els.resume.classList.remove("hidden");
@@ -545,9 +595,41 @@ function humanAgo(ms) {
   return `${Math.round(h / 24)}d`;
 }
 
-function setAutoStatus(msg, cls) {
+function setAutoStatus(msg, cls, details = "") {
   els.autoStatus.textContent = msg;
+  els.autoStatus.title = details;
   els.autoStatus.className = `status ${cls}`;
+}
+
+function watchBackgroundStatusChanges() {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes[BACKGROUND_STATUS_KEY]) return;
+    refreshAutoStatusFromSettings().catch(() => {});
+    refreshSyncStatusFromSettings().catch(() => {});
+  });
+}
+
+async function refreshAutoStatusFromSettings() {
+  const settings = await getSettings();
+  await refreshAutoStatus(settings.autoTriage);
+}
+
+async function refreshSyncStatusFromSettings() {
+  const settings = await getSettings();
+  await refreshSyncStatus(settings.sync);
+}
+
+function formatInlineBackgroundStatus(status) {
+  const base = formatBackgroundStatusMessage(status);
+  const seen = status.occurrenceCount > 1 ? ` Seen ${status.occurrenceCount} times.` : "";
+  const lastSeen = status.updatedAt ? ` Last seen ${humanAgo(Date.now() - status.updatedAt)} ago.` : "";
+  return `${base}${seen}${lastSeen}`;
+}
+
+function statusClass(status) {
+  if (status.level === STATUS_LEVELS.ERROR) return "err";
+  if (status.level === STATUS_LEVELS.WARNING) return "warn";
+  return "";
 }
 
 async function renderPlan() {

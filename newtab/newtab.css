@@ -145,6 +145,7 @@ main {
 }
 .status.err { color: var(--danger); }
 .status.ok { color: var(--ok); }
+.status.warn { color: var(--warn); }
 
 button {
   font: inherit;
@@ -217,6 +218,32 @@ button.danger-subtle:hover { background: var(--danger-soft); }
 }
 .setup-card button {
   flex-shrink: 0;
+}
+
+.background-status-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.background-status-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--muted);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.background-status-item.warn { border-left-color: var(--warn); }
+.background-status-item.err { border-left-color: var(--danger); }
+.background-status-title {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.background-status-message {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .empty {
