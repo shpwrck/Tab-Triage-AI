@@ -601,6 +601,20 @@ button.small { padding: 5px 10px; font-size: 12px; }
   font-size: 12px;
   line-height: 1.35;
 }
+.notice.is-error {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--accent-strong);
+}
+.notice.is-ok {
+  background: var(--ok-soft);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.notice a {
+  color: inherit;
+  font-weight: 600;
+}
 
 .alert-section {
   background: var(--surface);

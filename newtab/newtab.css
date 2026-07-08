@@ -202,6 +202,28 @@ main {
 .status.err { color: var(--danger); }
 .status.ok { color: var(--ok); }
 .status.warn { color: var(--warn); }
+.notice {
+  background: var(--accent-2-soft);
+  border: 1px solid var(--accent-2);
+  border-radius: 8px;
+  color: var(--accent-2-strong);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.notice.is-error {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.notice.is-ok {
+  background: var(--accent-2-soft);
+  border-color: var(--accent-2);
+  color: var(--accent-2-strong);
+}
+.notice a {
+  color: inherit;
+  font-weight: 600;
+}
 
 button {
   font: inherit;
