@@ -12,7 +12,7 @@
         <li><a href="#section-appearance">Appearance</a></li>
         <li><a href="#section-newtab">New tab</a></li>
         <li><a href="#section-plan">Plan</a></li>
-        <li><a href="#section-badge">Badge</a></li>
+        <li><a href="#section-badge">Stale tabs</a></li>
         <li><a href="#section-auto">Auto-triage</a></li>
         <li><a href="#section-notion">Notion</a></li>
         <li><a href="#section-sync">Sync</a></li>
@@ -150,16 +150,12 @@
       </section>
 
       <section class="card" id="section-badge">
-        <h2>Toolbar badge</h2>
+        <h2>Stale tabs</h2>
         <p class="muted">
-          Shows a count on the extension icon for how many tabs you haven't used in a while —
-          a glanceable signal that there's something to triage. No AI calls, updates live.
+          Choose when a tab counts as stale for the new-tab dashboard, auto-sleep, and the optional
+          toolbar badge. No AI calls, updates live.
         </p>
-        <label class="checkbox-row">
-          <input id="badge-enabled" type="checkbox" />
-          <span><strong>Show stale-tab count on the icon</strong></span>
-        </label>
-        <div id="badge-config" class="hidden" style="margin-top:8px;">
+        <div class="settings-group">
           <label class="field">
             <span class="field-label">Stale threshold</span>
             <select id="badge-threshold">
@@ -171,7 +167,7 @@
               <option value="168">1 week</option>
               <option value="custom" id="badge-threshold-custom-opt">Custom… (Lifetime)</option>
             </select>
-            <span class="field-hint">Tabs you haven't used in this long count toward the badge.</span>
+            <span class="field-hint">Tabs you haven't used in this long appear as stale across cleanup surfaces.</span>
           </label>
           <div id="badge-threshold-custom" class="hidden" style="margin-top:8px;">
             <div class="row" style="margin-bottom:0; align-items:center; gap:6px;">
@@ -187,7 +183,16 @@
           <p id="badge-status" class="status" style="margin-top:8px;" role="status" aria-live="polite" aria-atomic="true"></p>
         </div>
 
-        <label class="checkbox-row" style="margin-top:14px;">
+        <div class="settings-group">
+          <h3 class="subsection-title">Toolbar badge</h3>
+          <p class="muted">Optionally show the stale-tab count on the extension icon.</p>
+          <label class="checkbox-row">
+            <input id="badge-enabled" type="checkbox" />
+            <span><strong>Show stale-tab count on the icon</strong></span>
+          </label>
+        </div>
+
+        <label class="checkbox-row settings-group">
           <input id="sleep-enabled" type="checkbox" />
           <span>
             <strong>Also auto-sleep stale tabs to free memory</strong>

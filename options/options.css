@@ -267,6 +267,18 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .session-limit-settings .row { margin-bottom: 6px; }
 .session-limit-settings .status { margin: 0; }
 
+.settings-group {
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+.settings-group .status { margin-bottom: 0; }
+.subsection-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 code {
   background: var(--surface-2);
   padding: 1px 6px;
