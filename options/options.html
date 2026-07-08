@@ -51,13 +51,13 @@
         <label class="field" style="margin-bottom:12px;">
           <span class="field-label">Model</span>
           <input id="llm-model" type="text" autocomplete="off" spellcheck="false" />
-          <span class="field-hint">Defaults to a cheap/fast model for the selected AI provider. Override if you want.</span>
+          <span class="field-hint" id="llm-model-help">Defaults to a cheap/fast model for the selected AI provider. Override if you want.</span>
         </label>
 
         <label class="field hidden" id="llm-baseurl-field" style="margin-bottom:12px;">
           <span class="field-label">Base URL (optional)</span>
           <input id="llm-baseurl" type="text" placeholder="https://openrouter.ai/api/v1" autocomplete="off" spellcheck="false" />
-          <span class="field-hint">For OpenAI-compatible servers (OpenRouter, Groq, Together, Ollama, LM Studio). Leave blank for OpenAI proper.</span>
+          <span class="field-hint" id="llm-baseurl-help">For OpenAI-compatible servers (OpenRouter, Groq, Together, Ollama, LM Studio). Leave blank for OpenAI proper.</span>
         </label>
 
         <label class="field" style="margin-bottom:12px;">

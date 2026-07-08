@@ -14,8 +14,10 @@ const els = {
   providerHelp: $("#llm-key-help"),
   key: $("#api-key"),
   model: $("#llm-model"),
+  modelHelp: $("#llm-model-help"),
   baseUrlField: $("#llm-baseurl-field"),
   baseUrl: $("#llm-baseurl"),
+  baseUrlHelp: $("#llm-baseurl-help"),
   instructions: $("#llm-instructions"),
   toggle: $("#toggle-visibility"),
   save: $("#save"),
@@ -66,6 +68,9 @@ const els = {
   dataHint: $("#data-hint"),
 };
 
+const providerDrafts = {};
+let activeLlmProvider = "";
+
 async function init() {
   await applyStoredTheme();
   watchThemeChanges();
@@ -74,20 +79,20 @@ async function init() {
   const settings = await getSettings();
 
   populateProviderOptions();
-  setProviderUi(settings.llm.provider);
+  activeLlmProvider = settings.llm.provider;
+  seedProviderDraft(activeLlmProvider, settings.llm);
+  setProviderUi(activeLlmProvider);
   els.key.value = settings.llm.apiKey ?? "";
-  els.model.value = settings.llm.model ?? "";
-  els.baseUrl.value = settings.llm.baseUrl ?? "";
+  applyProviderDraft(activeLlmProvider);
   els.instructions.value = settings.llm.customInstructions ?? "";
 
   els.provider.addEventListener("change", () => {
+    rememberProviderDraft(activeLlmProvider);
     const provider = els.provider.value;
+    activeLlmProvider = provider;
     setProviderUi(provider);
-    // Preselect the provider's default model if the field is empty so
-    // users don't have to know model names by heart.
-    if (!els.model.value.trim()) {
-      els.model.value = PROVIDERS[provider]?.defaultModel ?? "";
-    }
+    applyProviderDraft(provider);
+    latestLlmTestId += 1;
   });
 
   els.toggle.addEventListener("click", () => {
@@ -297,8 +302,44 @@ function setProviderUi(provider) {
   const p = PROVIDERS[provider];
   if (!p) return;
   els.providerHelp.textContent = p.keyHelp;
+  els.key.placeholder = p.keyPlaceholder || "sk-...";
   els.baseUrlField.classList.toggle("hidden", !p.supportsBaseUrl);
+  els.baseUrl.disabled = !p.supportsBaseUrl;
   els.model.placeholder = p.defaultModel;
+  els.modelHelp.textContent = p.modelHelp || "Defaults to a cheap/fast model for the selected AI provider. Override if you want.";
+  els.baseUrl.placeholder = p.baseUrlPlaceholder || "";
+  els.baseUrlHelp.textContent = p.baseUrlHelp || "";
+  if (!p.supportsBaseUrl) els.baseUrl.value = "";
+}
+
+function cleanFormText(value) {
+  return String(value ?? "").trim();
+}
+
+function seedProviderDraft(provider, llm) {
+  const p = PROVIDERS[provider];
+  if (!p) return;
+  providerDrafts[provider] = {
+    model: cleanFormText(llm?.model) || p.defaultModel || "",
+    baseUrl: p.supportsBaseUrl ? cleanFormText(llm?.baseUrl) : "",
+  };
+}
+
+function rememberProviderDraft(provider) {
+  const p = PROVIDERS[provider];
+  if (!p) return;
+  providerDrafts[provider] = {
+    model: cleanFormText(els.model.value),
+    baseUrl: p.supportsBaseUrl ? cleanFormText(els.baseUrl.value) : "",
+  };
+}
+
+function applyProviderDraft(provider) {
+  const p = PROVIDERS[provider];
+  if (!p) return;
+  const draft = providerDrafts[provider] ?? {};
+  els.model.value = draft.model || p.defaultModel || "";
+  els.baseUrl.value = p.supportsBaseUrl ? (draft.baseUrl || "") : "";
 }
 
 const THRESHOLD_PRESETS = new Set([1, 4, 12, 24, 72, 168]);
@@ -538,9 +579,12 @@ let latestLlmTestId = 0;
 
 function readLlmFormSettings() {
   const provider = els.provider.value;
+  rememberProviderDraft(provider);
+  const providerConfig = PROVIDERS[provider];
+  const draft = providerDrafts[provider] ?? {};
   const apiKey = els.key.value.trim();
-  const model = els.model.value.trim() || PROVIDERS[provider]?.defaultModel || "";
-  const baseUrl = els.baseUrl.value.trim();
+  const model = cleanFormText(draft.model) || providerConfig?.defaultModel || "";
+  const baseUrl = providerConfig?.supportsBaseUrl ? cleanFormText(draft.baseUrl) : "";
   const customInstructions = els.instructions.value.trim();
   return { provider, apiKey, model, baseUrl, customInstructions };
 }
