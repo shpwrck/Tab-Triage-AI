@@ -613,9 +613,13 @@ function resultGroupsForOutput() {
 
 function groupMoveOptions(currentIdx) {
   return (state.lastResult?.groups ?? [])
-    .map((group, optionIdx) => `
-      <option value="${optionIdx}" ${optionIdx === currentIdx ? "selected" : ""}>${escape(editableGroupLabel(group, optionIdx))}</option>
-    `)
+    .map((group, optionIdx) => {
+      const selected = optionIdx === currentIdx ? "selected" : "";
+      const disabled = group.status && optionIdx !== currentIdx ? "disabled" : "";
+      return `
+        <option value="${optionIdx}" ${selected} ${disabled}>${escape(editableGroupLabel(group, optionIdx))}</option>
+      `;
+    })
     .join("");
 }
 
