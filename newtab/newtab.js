@@ -33,7 +33,7 @@ import {
 import { setTriageRunning, formatThresholdLabel } from "../lib/badge.js";
 import { applyStoredTheme, watchThemeChanges } from "../lib/theme.js";
 import { runQuotaLimitedTriage, TriageQuotaError } from "../lib/triage_quota.js";
-import { getStaleTabs, isTriageEligibleTab, splitStaleBulkActionTabs, staleThresholdMs } from "../lib/tab_policy.js";
+import { getStaleTabs, getTriageEligibleTabs, splitStaleBulkActionTabs, staleThresholdMs } from "../lib/tab_policy.js";
 import { refreshPlan, openCheckout } from "../lib/billing.js";
 import { getPlanQuotaSummary, formatLifetimePrice } from "../lib/plan_quota.js";
 import { normalizeTriageGroups } from "../lib/triage_normalize.js";
@@ -1388,9 +1388,9 @@ async function onTriageNow() {
   }
   // Reassess all triage-eligible tabs — grouped tabs included.
   const tabs = await chrome.tabs.query({ windowId: win.id });
-  const candidates = tabs.filter(isTriageEligibleTab);
+  const candidates = getTriageEligibleTabs(tabs, settings);
   if (candidates.length < 2) {
-    setHeroStatus("Need at least 2 tabs to triage.", "err");
+    setHeroStatus("Need at least 2 non-excluded tabs to triage.", "err");
     return;
   }
 

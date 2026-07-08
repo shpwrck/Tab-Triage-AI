@@ -15,6 +15,7 @@
         <li><a href="#section-plan">Plan</a></li>
         <li><a href="#section-badge">Stale tabs</a></li>
         <li><a href="#section-auto">Auto-triage</a></li>
+        <li><a href="#section-exclusions">Exclusions</a></li>
         <li><a href="#section-notion">Notion</a></li>
         <li><a href="#section-sync">Sync</a></li>
         <li><a href="#section-backup">Backup</a></li>
@@ -149,7 +150,7 @@
         <p id="plan-status" class="muted" role="status" aria-live="polite" aria-atomic="true">Loading plan…</p>
         <p>
           <strong>Free:</strong> 5 triages per week, up to 10 tabs per triage.<br />
-          <strong id="lifetime-headline">Lifetime · one-time payment:</strong> unlimited triages, no tab cap, dark mode, custom stale intervals, settings and sessions backup, and Notion export. No subscription, no renewals — buy once, keep forever.
+          <strong id="lifetime-headline">Lifetime · one-time payment:</strong> unlimited triages, no tab cap, dark mode, custom stale intervals, triage exclusions, settings and sessions backup, and Notion export. No subscription, no renewals — buy once, keep forever.
         </p>
         <div class="actions" id="plan-actions"></div>
         <p id="waitlist-wrap" class="muted hidden" style="margin-top:12px;">
@@ -270,6 +271,25 @@
             <button id="resume" class="ghost hidden">Resume</button>
             <span id="auto-status" class="status" role="status" aria-live="polite" aria-atomic="true"></span>
           </div>
+        </div>
+      </section>
+
+      <section class="card" id="section-exclusions">
+        <h2>Triage exclusions</h2>
+        <p class="muted">
+          Keep sensitive or stable sites out of auto-triage and full-window Triage now. Excluded tabs are not
+          sent to the AI provider and are not moved into new tab groups. Pinned tabs are always excluded.
+        </p>
+        <p id="exclusions-plan-note" class="lifetime-note"></p>
+        <label class="field" style="margin-bottom:12px;">
+          <span class="field-label">Excluded domains or URL patterns</span>
+          <textarea id="triage-exclusions" rows="5" placeholder="mail.example.com&#10;bank.example&#10;example.com/private/*" spellcheck="false"></textarea>
+          <span class="field-hint">One per line. A domain includes its subdomains; use * for simple URL wildcards.</span>
+        </label>
+        <div class="actions">
+          <button id="exclusions-save" class="primary">Save exclusions</button>
+          <button id="exclusions-clear" class="ghost">Clear</button>
+          <span id="exclusions-status" class="status" role="status" aria-live="polite" aria-atomic="true"></span>
         </div>
       </section>
 

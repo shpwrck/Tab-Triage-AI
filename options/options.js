@@ -13,6 +13,11 @@ import { refreshPlan, openCheckout, openLogin, billingEnabled, lifetimePriceUsd 
 import { pauseAutoTriage, resumeAutoTriage } from "../lib/auto_triage.js";
 import { updateBadge } from "../lib/badge.js";
 import { PROVIDERS, pingProvider, LLMError } from "../lib/llm/index.js";
+import {
+  formatTriageExclusionText,
+  normalizeTriageExclusionPatterns,
+  parseTriageExclusionText,
+} from "../lib/tab_policy.js";
 import { onSyncEnabledChange } from "../lib/session_sync.js";
 import { pingNotion, extractPageId, NotionError } from "../lib/notion.js";
 import { applyStoredTheme, applyTheme, watchThemeChanges } from "../lib/theme.js";
@@ -58,6 +63,11 @@ const els = {
   pauseTilTomorrow: $("#pause-til-tomorrow"),
   resume: $("#resume"),
   autoStatus: $("#auto-status"),
+  exclusionsPlanNote: $("#exclusions-plan-note"),
+  triageExclusions: $("#triage-exclusions"),
+  exclusionsSave: $("#exclusions-save"),
+  exclusionsClear: $("#exclusions-clear"),
+  exclusionsStatus: $("#exclusions-status"),
   badgeEnabled: $("#badge-enabled"),
   badgeThreshold: $("#badge-threshold"),
   badgeThresholdCustomOpt: $("#badge-threshold-custom-opt"),
@@ -174,6 +184,7 @@ async function init() {
   await initNewTab(settings);
   await initShortcuts();
   await initAutoTriage(settings);
+  await initTriageExclusions(settings);
   await initBadge(settings);
   await initSync(settings);
   await initNotion(settings);
@@ -813,6 +824,72 @@ function humanAgo(ms) {
 
 function setAutoStatus(msg, cls, details = "") {
   setStatusElement(els.autoStatus, msg, cls, details);
+}
+
+async function initTriageExclusions(settings) {
+  // Plan refresh just ran in renderPlan(); re-read settings so this gate
+  // preserves cached lifetime status if ExtPay could not be reached.
+  const fresh = await getSettings();
+  const isLifetime = fresh.plan === "lifetime";
+  let savedPatterns = normalizeTriageExclusionPatterns(
+    fresh.triage?.excludedPatterns ?? settings.triage?.excludedPatterns,
+  );
+
+  els.triageExclusions.value = formatTriageExclusionText(savedPatterns);
+  renderTriageExclusionsGate(isLifetime, savedPatterns.length);
+
+  els.exclusionsSave.addEventListener("click", async () => {
+    if (!isLifetime) {
+      setExclusionsStatus("Triage exclusions are a Lifetime feature.", "warn");
+      return;
+    }
+    savedPatterns = parseTriageExclusionText(els.triageExclusions.value);
+    await saveSettings({ triage: { excludedPatterns: savedPatterns } });
+    els.triageExclusions.value = formatTriageExclusionText(savedPatterns);
+    renderTriageExclusionsGate(isLifetime, savedPatterns.length);
+    setExclusionsStatus(exclusionSaveStatus(savedPatterns.length), "ok");
+  });
+
+  els.exclusionsClear.addEventListener("click", async () => {
+    if (!isLifetime && !savedPatterns.length) {
+      setExclusionsStatus("Triage exclusions are a Lifetime feature.", "warn");
+      return;
+    }
+    savedPatterns = [];
+    els.triageExclusions.value = "";
+    await saveSettings({ triage: { excludedPatterns: [] } });
+    renderTriageExclusionsGate(isLifetime, 0);
+    setExclusionsStatus("Exclusions cleared.", "ok");
+  });
+}
+
+function renderTriageExclusionsGate(isLifetime, savedCount) {
+  const price = lifetimePriceUsd();
+  const lockedCopy = billingEnabled()
+    ? `Triage exclusions require Lifetime ($${price} one-time).`
+    : "Triage exclusions require Lifetime. Checkout is not live yet, so editing will unlock when Lifetime checkout launches.";
+  els.exclusionsPlanNote.textContent = isLifetime
+    ? "Triage exclusions are included with your Lifetime plan. Matching tabs stay local during full-window triage."
+    : savedCount
+      ? `${lockedCopy} Saved exclusions remain active, but editing requires Lifetime.`
+      : lockedCopy;
+  els.exclusionsPlanNote.classList.toggle("warn", !isLifetime);
+  els.triageExclusions.disabled = !isLifetime;
+  els.exclusionsSave.disabled = !isLifetime;
+  els.exclusionsClear.disabled = !isLifetime && savedCount === 0;
+  setExclusionsStatus(
+    isLifetime ? "" : (savedCount ? "Saved exclusions remain active." : "Lifetime required before setup."),
+    isLifetime ? "" : "warn",
+  );
+}
+
+function exclusionSaveStatus(count) {
+  if (!count) return "Exclusions cleared.";
+  return `${count} exclusion${count === 1 ? "" : "s"} saved.`;
+}
+
+function setExclusionsStatus(msg, cls) {
+  setStatusElement(els.exclusionsStatus, msg, cls);
 }
 
 function watchBackgroundStatusChanges() {
