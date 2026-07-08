@@ -13,6 +13,7 @@
   --accent-2: #0d9488;          /* surgical teal */
   --accent-2-strong: #0f766e;
   --accent-2-soft: #ccfbf1;
+  --focus-ring: #0f766e;
   --ok: #16a34a;
   --ok-soft: #dcfce7;
   --warn: #d97706;
@@ -39,6 +40,7 @@ body.dark {
   --accent-2: #5eead4;
   --accent-2-strong: #2dd4bf;
   --accent-2-soft: rgba(94, 234, 212, 0.22);
+  --focus-ring: #5eead4;
   --ok: #4ade80;
   --ok-soft: rgba(74, 222, 128, 0.18);
   --warn: #fbbf24;
@@ -64,6 +66,7 @@ body.dark {
     --accent-2: #5eead4;
     --accent-2-strong: #2dd4bf;
     --accent-2-soft: #122e2b;
+    --focus-ring: #5eead4;
     --ok: #4ade80;
     --ok-soft: #14281a;
     --warn: #fbbf24;
@@ -493,7 +496,9 @@ button.small { padding: 5px 10px; font-size: 12px; }
   border-radius: 4px;
   transition: opacity 0.15s ease;
 }
-.group-tabs li:hover .tab-close { opacity: 1; }
+.group-tabs li:hover .tab-close,
+.group-tabs li:focus-within .tab-close,
+.tab-close:focus-visible { opacity: 1; }
 .tab-close:hover { background: var(--danger-soft); color: var(--danger); }
 
 .group-actions {
@@ -605,7 +610,8 @@ button.small { padding: 5px 10px; font-size: 12px; }
 
 .alert-list li:last-child { border-bottom: none; }
 .alert-list li:hover { background: var(--surface-2); }
-.alert-list li:hover .tab-close { opacity: 1; }
+.alert-list li:hover .tab-close,
+.alert-list li:focus-within .tab-close { opacity: 1; }
 .alert-list .favicon { width: 14px; height: 14px; flex-shrink: 0; border-radius: 2px; }
 
 .alert-tab-body {
@@ -686,3 +692,32 @@ button.small { padding: 5px 10px; font-size: 12px; }
   vertical-align: -2px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+.search input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.search-result-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .spinner {
+    animation: none !important;
+  }
+}
