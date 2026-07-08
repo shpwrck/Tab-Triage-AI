@@ -73,6 +73,7 @@ const els = {
   notionToken: $("#notion-token"),
   notionParent: $("#notion-parent"),
   notionParentHint: $("#notion-parent-hint"),
+  notionPlanNote: $("#notion-plan-note"),
   notionToggle: $("#notion-toggle"),
   notionSave: $("#notion-save"),
   notionTest: $("#notion-test"),
@@ -241,12 +242,21 @@ async function initNewTab(settings) {
 }
 
 async function initNotion(settings) {
-  els.notionToken.value = settings.notion?.token ?? "";
-  const savedParentInput = settings.notion?.parentPageInput || settings.notion?.parentPageId || "";
+  const fresh = await getSettings();
+  const isLifetime = fresh.plan === "lifetime";
+  const notionSettings = fresh.notion ?? settings.notion ?? {};
+
+  els.notionToken.value = notionSettings.token ?? "";
+  const savedParentInput = notionSettings.parentPageInput || notionSettings.parentPageId || "";
   els.notionParent.value = savedParentInput;
-  setNotionParentHint(settings.notion?.parentPageId);
+  setNotionParentHint(notionSettings.parentPageId);
+  renderNotionPlanGate(isLifetime);
 
   els.notionToggle.addEventListener("click", () => {
+    if (!isLifetime) {
+      setNotionStatus("Notion export is a Lifetime feature.", "warn");
+      return;
+    }
     const showing = els.notionToken.type === "text";
     els.notionToken.type = showing ? "password" : "text";
     els.notionToggle.textContent = showing ? "Show" : "Hide";
@@ -257,6 +267,10 @@ async function initNotion(settings) {
   });
 
   els.notionSave.addEventListener("click", async () => {
+    if (!isLifetime) {
+      setNotionStatus("Notion export is a Lifetime feature.", "warn");
+      return;
+    }
     const token = els.notionToken.value.trim();
     const parentRaw = els.notionParent.value.trim();
     const parentPageId = extractPageId(parentRaw);
@@ -270,6 +284,10 @@ async function initNotion(settings) {
   });
 
   els.notionTest.addEventListener("click", async () => {
+    if (!isLifetime) {
+      setNotionStatus("Notion export is a Lifetime feature.", "warn");
+      return;
+    }
     const token = els.notionToken.value.trim();
     const parentPageId = extractPageId(els.notionParent.value.trim());
     if (!token || !parentPageId) {
@@ -291,6 +309,28 @@ async function initNotion(settings) {
       );
     }
   });
+}
+
+function renderNotionPlanGate(isLifetime) {
+  const price = lifetimePriceUsd();
+  const lockedCopy = billingEnabled()
+    ? `Notion export requires Lifetime ($${price} one-time). Upgrade in the Plan section before setting up token and page access.`
+    : "Notion export requires Lifetime. Checkout is not live yet, so setup will unlock when Lifetime checkout launches.";
+  els.notionPlanNote.textContent = isLifetime
+    ? "Notion export is included with your Lifetime plan. Your token stays on this device and is used only when you send an export."
+    : lockedCopy;
+  els.notionPlanNote.classList.toggle("warn", !isLifetime);
+
+  for (const control of [
+    els.notionToken,
+    els.notionParent,
+    els.notionToggle,
+    els.notionSave,
+    els.notionTest,
+  ]) {
+    control.disabled = !isLifetime;
+  }
+  setNotionStatus(isLifetime ? "" : "Lifetime required before setup.", isLifetime ? "" : "warn");
 }
 
 function setNotionParentHint(parentPageId) {
