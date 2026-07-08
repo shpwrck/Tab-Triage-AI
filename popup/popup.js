@@ -22,6 +22,7 @@ import { POPUP_TRIAGE_STATE_KEY, readPopupTriageState } from "../lib/popup_triag
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
 import { fuzzyScoreMulti } from "../lib/fuzzy.js";
 import { formatThresholdLabel } from "../lib/badge.js";
+import { isTriageEligibleTab, splitStaleBulkActionTabs, staleThresholdMs } from "../lib/tab_policy.js";
 import { applyStoredTheme, watchThemeChanges } from "../lib/theme.js";
 
 const $ = sel => document.querySelector(sel);
@@ -142,7 +143,7 @@ async function loadCurrentWindowTabs() {
     }
   }
   state.tabs = tabs
-    .filter(t => t.url && !t.url.startsWith("chrome://") && !t.url.startsWith("chrome-extension://"))
+    .filter(isTriageEligibleTab)
     .map(t => {
       const grouped = typeof t.groupId === "number" && t.groupId !== -1;
       const grp = grouped ? groupMap.get(t.groupId) : null;
@@ -157,7 +158,7 @@ async function loadCurrentWindowTabs() {
         groupTitle: grp?.title ?? null,
         groupColor: grp?.color ?? null,
         // Already-grouped tabs are unchecked by default to preserve the
-        // user's manual organization; they can opt them in case by case.
+        // user's manual organization; pinned tabs are excluded by policy.
         checked: !grouped,
       };
     });
@@ -1195,17 +1196,34 @@ function humanAgo(ms) {
   return `${Math.round(h / 24)} d`;
 }
 
-async function renderStaleTabs() {
+async function loadStaleTabs() {
   const [tabs, settings] = await Promise.all([
     chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }),
     getSettings(),
   ]);
   const hours = settings.badge?.thresholdHours ?? 24;
-  const thresholdMs = hours * 60 * 60 * 1000;
+  const thresholdMs = staleThresholdMs(hours);
   const now = Date.now();
-  const stale = tabs
-    .filter(t => typeof t.lastAccessed === "number" && now - t.lastAccessed >= thresholdMs && !t.pinned)
-    .sort((a, b) => (a.lastAccessed ?? 0) - (b.lastAccessed ?? 0));
+  const { staleTabs, actionTabs, protectedTabs } = splitStaleBulkActionTabs(tabs, { now, thresholdMs });
+  return { staleTabs, actionTabs, protectedTabs, hours, now };
+}
+
+function protectedStaleNote(count) {
+  if (!count) return "";
+  return ` ${count} active or audible stale tab${count === 1 ? "" : "s"} will stay open.`;
+}
+
+function setStaleBulkButtonState({ actionTabs, protectedTabs }) {
+  const hasProtected = protectedTabs.length > 0;
+  const count = hasProtected ? actionTabs.length : state.staleTabs.length;
+  els.staleCloseAll.disabled = actionTabs.length === 0;
+  els.staleArchiveAll.disabled = actionTabs.length === 0;
+  els.staleCloseAll.textContent = hasProtected ? `Close safe · ${count}` : `Close all · ${count}`;
+  els.staleArchiveAll.textContent = hasProtected ? `Archive safe · ${count}` : `Archive all · ${count}`;
+}
+
+async function renderStaleTabs() {
+  const { staleTabs: stale, actionTabs, protectedTabs, hours, now } = await loadStaleTabs();
 
   state.staleTabs = stale;
 
@@ -1218,8 +1236,7 @@ async function renderStaleTabs() {
   els.staleSectionCount.textContent = `${stale.length} tab${stale.length === 1 ? "" : "s"} · ${label}`;
   els.staleSection.classList.remove("hidden");
   els.staleSectionFooter.classList.remove("hidden");
-  els.staleCloseAll.textContent = `Close all · ${stale.length}`;
-  els.staleArchiveAll.textContent = `Archive all · ${stale.length}`;
+  setStaleBulkButtonState({ actionTabs, protectedTabs });
 
   els.staleSectionList.innerHTML = "";
   for (const t of stale) {
@@ -1314,11 +1331,16 @@ async function onDupeRowAction(action, dataset) {
 }
 
 async function onCloseAllStale() {
-  const stale = state.staleTabs;
-  if (!stale?.length) return;
-  if (!confirm(`Close ${stale.length} stale tab${stale.length === 1 ? "" : "s"} without saving?`)) return;
+  const { staleTabs, actionTabs, protectedTabs } = await loadStaleTabs();
+  if (!staleTabs.length) return;
+  if (!actionTabs.length) {
+    showError("Active or audible stale tabs need to be closed one at a time.");
+    await renderStaleTabs();
+    return;
+  }
+  if (!confirm(`Close ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"} without saving?${protectedStaleNote(protectedTabs.length)}`)) return;
   try {
-    await chrome.tabs.remove(stale.map(t => t.id));
+    await chrome.tabs.remove(actionTabs.map(t => t.id));
     await renderStaleTabs();
   } catch (e) {
     showError(`Couldn't close stale tabs: ${e.message ?? e}`);
@@ -1326,10 +1348,13 @@ async function onCloseAllStale() {
 }
 
 async function onArchiveAllStale() {
-  const stale = state.staleTabs;
-  if (!stale?.length) return;
-  const settings = await getSettings();
-  const hours = settings.badge?.thresholdHours ?? 24;
+  const { staleTabs, actionTabs, protectedTabs, hours } = await loadStaleTabs();
+  if (!staleTabs.length) return;
+  if (!actionTabs.length) {
+    showError("Active or audible stale tabs are protected from bulk archive.");
+    await renderStaleTabs();
+    return;
+  }
   const label = formatThresholdLabel(hours);
   const session = {
     id: `s_${Date.now()}`,
@@ -1339,17 +1364,17 @@ async function onArchiveAllStale() {
       label: `Stale tabs (${label})`,
       emoji: "",
       summary: [
-        `${stale.length} stale tab${stale.length === 1 ? "" : "s"} (${label})`,
+        `${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"} (${label})`,
         "Captured from the popup",
         "Restore via Saved sessions to revisit",
       ],
-      tabs: stale.map(t => ({ title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
+      tabs: actionTabs.map(t => ({ title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
     }],
   };
   await saveSession(session);
   try {
-    await chrome.tabs.remove(stale.map(t => t.id));
-    flashButton(els.staleArchiveAll, "Archived");
+    await chrome.tabs.remove(actionTabs.map(t => t.id));
+    flashButton(els.staleArchiveAll, protectedTabs.length ? "Archived safe" : "Archived");
     await renderStaleTabs();
   } catch (e) {
     showError(`Couldn't archive stale tabs: ${e.message ?? e}`);
