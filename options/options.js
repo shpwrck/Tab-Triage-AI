@@ -534,6 +534,8 @@ function addAction(label, handler, variant = "ghost") {
   els.planActions.appendChild(btn);
 }
 
+let latestLlmTestId = 0;
+
 function readLlmFormSettings() {
   const provider = els.provider.value;
   const apiKey = els.key.value.trim();
@@ -541,6 +543,12 @@ function readLlmFormSettings() {
   const baseUrl = els.baseUrl.value.trim();
   const customInstructions = els.instructions.value.trim();
   return { provider, apiKey, model, baseUrl, customInstructions };
+}
+
+function fingerprintLlmSettings(llm) {
+  return [llm.provider, llm.apiKey, llm.model, llm.baseUrl, llm.customInstructions]
+    .map(value => JSON.stringify(value ?? ""))
+    .join("|");
 }
 
 function validateLlmFormSettings(llm) {
@@ -559,6 +567,7 @@ function validateLlmFormSettings(llm) {
 async function onSave() {
   const llm = readLlmFormSettings();
   if (!validateLlmFormSettings(llm)) return;
+  latestLlmTestId += 1;
   await saveSettings({ llm });
   setStatus("Saved.", "ok");
 }
@@ -566,12 +575,22 @@ async function onSave() {
 async function onTest() {
   const llm = readLlmFormSettings();
   if (!validateLlmFormSettings(llm)) return;
+  const testId = ++latestLlmTestId;
+  const testedFingerprint = fingerprintLlmSettings(llm);
   setStatus("Testing…", "");
   try {
     await pingProvider({ settings: { llm } });
-    await saveSettings({ llm });
+    if (testId !== latestLlmTestId) return;
+    const currentLlm = readLlmFormSettings();
+    const currentFingerprint = fingerprintLlmSettings(currentLlm);
+    if (currentFingerprint !== testedFingerprint) {
+      setStatus("Connection works, but settings changed before the test finished. Test again to save the latest settings.", "err");
+      return;
+    }
+    await saveSettings({ llm: currentLlm });
     setStatus("Connection works. Settings saved. You're good to triage.", "ok");
   } catch (e) {
+    if (testId !== latestLlmTestId) return;
     const msg = e instanceof LLMError ? e.message : `Network error: ${e.message ?? e}`;
     setStatus(`Failed: ${msg}`, "err");
   }
