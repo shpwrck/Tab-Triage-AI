@@ -10,6 +10,7 @@ import { installSleepStale } from "../lib/sleep_stale.js";
 import { installSessionSync } from "../lib/session_sync.js";
 import { runManualTriage } from "../lib/manual_triage.js";
 import { readPopupTriageState, startPopupTriage } from "../lib/popup_triage.js";
+import { formatApplyFailureMessage } from "../lib/actions.js";
 
 if (billingEnabled()) {
   getExtPay().startBackground();
@@ -41,16 +42,14 @@ chrome.commands.onCommand.addListener(async cmd => {
   if (cmd === "triage-now") {
     try {
       const win = await chrome.windows.getLastFocused();
-      const { groups, candidates, totalCandidates, cap } = await runManualTriage({ windowId: win?.id });
-      const scopedCount = cap?.applied ? `${candidates} of ${totalCandidates}` : String(candidates);
+      const result = await runManualTriage({ windowId: win?.id });
+      const notification = formatManualTriageNotification(result);
       chrome.notifications.create({
         type: "basic",
         iconUrl: chrome.runtime.getURL("icons/icon128.png"),
-        title: "Tab Triage",
-        message: groups.length
-          ? `Grouped ${scopedCount} tabs into ${groups.length} cluster${groups.length === 1 ? "" : "s"}.`
-          : "Nothing to do — fewer than 2 candidate tabs.",
-        priority: 0,
+        title: notification.title,
+        message: notification.message,
+        priority: notification.priority,
       }).catch(() => {});
     } catch (e) {
       chrome.notifications.create({
@@ -63,6 +62,43 @@ chrome.commands.onCommand.addListener(async cmd => {
     }
   }
 });
+
+function formatManualTriageNotification({ groups, candidates, totalCandidates, cap, applySummary }) {
+  if (!groups?.length) {
+    return {
+      title: "Tab Triage",
+      message: "Triage finished, but no tab groups were applied.",
+      priority: 0,
+    };
+  }
+
+  const summary = applySummary ?? {
+    groupedTabCount: candidates,
+    groupedGroupCount: groups.length,
+    failedGroupCount: 0,
+  };
+  const scopedCount = cap?.applied
+    ? `${summary.groupedTabCount} of ${totalCandidates}`
+    : String(summary.groupedTabCount);
+  const clusterWord = summary.groupedGroupCount === 1 ? "cluster" : "clusters";
+
+  if (summary.failedGroupCount) {
+    const successPrefix = summary.groupedGroupCount
+      ? `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${clusterWord}. `
+      : "No tab groups were applied. ";
+    return {
+      title: summary.groupedGroupCount ? "Tab Triage partially grouped" : "Tab Triage could not group tabs",
+      message: `${successPrefix}${formatApplyFailureMessage(summary)}`,
+      priority: 1,
+    };
+  }
+
+  return {
+    title: "Tab Triage",
+    message: `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${clusterWord}.`,
+    priority: 0,
+  };
+}
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "restore-session") {

@@ -1,7 +1,7 @@
 import { getSettings, listSessions, deleteSession, saveSession, updateSession } from "../lib/storage.js";
 import { readTriageCache, saveTriageCache, clearTriageCache } from "../lib/triage_cache.js";
 import { LLMError } from "../lib/llm/index.js";
-import { applyAllAsTabGroups, restoreSession } from "../lib/actions.js";
+import { applyAllAsTabGroups, formatApplyFailureMessage, restoreSession, summarizeApplyResults } from "../lib/actions.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
 import { setTriageRunning, formatThresholdLabel } from "../lib/badge.js";
 import { applyStoredTheme, watchThemeChanges } from "../lib/theme.js";
@@ -730,17 +730,15 @@ async function onTriageNow() {
             tabs: groupTabs.map(t => ({ id: t.id, windowId: t.windowId, title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
           };
         });
-        await applyAllAsTabGroups({ groups });
+        const applyResults = await applyAllAsTabGroups({ groups });
+        const applySummary = summarizeApplyResults({ groups, results: applyResults });
         await saveTriageCache({ windowId: win.id, groups });
         await renderLatest();
         await renderStats();
-        return { groups, cap, triagedCount: triageCandidates.length };
+        return { groups, cap, applySummary };
       },
     });
-    const scopedCount = result.cap.applied
-      ? `${result.triagedCount} of ${result.cap.originalCount}`
-      : String(result.triagedCount);
-    setHeroStatus(`Grouped ${scopedCount} tabs into ${result.groups.length} clusters.`, "ok");
+    setHeroStatus(formatApplyStatus(result.applySummary, result.cap), result.applySummary.failedGroupCount ? "err" : "ok");
   } catch (e) {
     if (e instanceof TriageQuotaError) {
       setHeroStatus(e.message, "err");
@@ -775,6 +773,21 @@ async function onClearHistory() {
 function setHeroStatus(msg, cls = "") {
   els.heroStatus.textContent = msg;
   els.heroStatus.className = `status muted ${cls}`;
+}
+
+function formatApplyStatus(summary, cap) {
+  const scopedCount = cap?.applied
+    ? `${summary.groupedTabCount} of ${cap.originalCount}`
+    : String(summary.groupedTabCount);
+  const clusterWord = summary.groupedGroupCount === 1 ? "cluster" : "clusters";
+  if (summary.failedGroupCount) {
+    const successPrefix = summary.groupedGroupCount
+      ? `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${clusterWord}. `
+      : "No tab groups were applied. ";
+    return `${successPrefix}${formatApplyFailureMessage(summary)}`;
+  }
+  if (!summary.groupedGroupCount) return "Triage finished, but no tab groups were applied.";
+  return `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${clusterWord}.`;
 }
 
 // Wrap an async action with a button's inline "Sending… / Sent / Failed"
