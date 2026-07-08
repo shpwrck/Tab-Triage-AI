@@ -259,6 +259,48 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .lifetime-note.warn { border-color: var(--warn); }
 
+.shortcut-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.shortcut-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.shortcut-item:last-child { border-bottom: 0; }
+.shortcut-name { font-weight: 600; }
+.shortcut-description {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.shortcut-key {
+  min-width: 96px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+.shortcut-key.unset {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
 .session-limit-settings {
   border-top: 1px solid var(--border);
   margin: 14px 0 12px;
@@ -355,5 +397,14 @@ input[type="checkbox"]:focus-visible,
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .shortcut-item {
+    grid-template-columns: 1fr;
+  }
+  .shortcut-key {
+    justify-self: start;
   }
 }

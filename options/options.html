@@ -11,6 +11,7 @@
         <li><a href="#section-llm">AI</a></li>
         <li><a href="#section-appearance">Appearance</a></li>
         <li><a href="#section-newtab">New tab</a></li>
+        <li><a href="#section-shortcuts">Shortcuts</a></li>
         <li><a href="#section-plan">Plan</a></li>
         <li><a href="#section-badge">Badge</a></li>
         <li><a href="#section-auto">Auto-triage</a></li>
@@ -129,6 +130,18 @@
           <span><strong>Use Tab Triage AI as my new tab page</strong></span>
         </label>
         <p id="newtab-status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
+      </section>
+
+      <section class="card" id="section-shortcuts">
+        <h2>Shortcuts</h2>
+        <p class="muted">
+          Chrome owns extension shortcuts. These are the shortcuts currently configured for Tab Triage AI in this profile.
+        </p>
+        <ul id="shortcut-list" class="shortcut-list" aria-live="polite"></ul>
+        <div class="actions">
+          <button id="shortcut-settings" class="ghost">Open Chrome shortcut settings</button>
+          <span id="shortcut-status" class="status" role="status" aria-live="polite" aria-atomic="true"></span>
+        </div>
       </section>
 
       <section class="card" id="section-plan">

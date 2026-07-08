@@ -82,6 +82,9 @@ const els = {
   themeHelp: $("#theme-help"),
   newtabEnabled: $("#newtab-enabled"),
   newtabStatus: $("#newtab-status"),
+  shortcutList: $("#shortcut-list"),
+  shortcutSettings: $("#shortcut-settings"),
+  shortcutStatus: $("#shortcut-status"),
   sessionLimit: $("#session-limit"),
   sessionOverflow: $("#session-overflow"),
   sessionLimitStatus: $("#session-limit-status"),
@@ -94,6 +97,23 @@ const els = {
 
 const providerDrafts = {};
 let activeLlmProvider = "";
+
+const CHROME_SHORTCUT_SETTINGS_URL = "chrome://extensions/shortcuts";
+const SHORTCUT_ORDER = ["open-popup", "search-tabs", "triage-now"];
+const SHORTCUT_COPY = Object.freeze({
+  "open-popup": {
+    label: "Open Tab Triage AI",
+    description: "Opens the popup from anywhere Chrome accepts extension shortcuts.",
+  },
+  "search-tabs": {
+    label: "Search tabs and sessions",
+    description: "Opens the popup with the search field ready for typing.",
+  },
+  "triage-now": {
+    label: "Triage current window",
+    description: "Runs tab grouping for the last focused Chrome window.",
+  },
+});
 
 function setStatusElement(el, msg, cls = "", details = "") {
   if (!el) return;
@@ -153,6 +173,7 @@ async function init() {
   await renderPlan();
   await initTheme();
   await initNewTab(settings);
+  await initShortcuts();
   await initAutoTriage(settings);
   await initBadge(settings);
   await initSync(settings);
@@ -262,6 +283,77 @@ async function initNewTab(settings) {
       "ok",
     );
   });
+}
+
+async function initShortcuts() {
+  els.shortcutSettings.addEventListener("click", openChromeShortcutSettings);
+  const rendered = await renderShortcuts();
+  if (rendered) await refreshShortcutStatus();
+}
+
+async function renderShortcuts() {
+  try {
+    const commands = await chrome.commands.getAll();
+    const byName = new Map(commands.map(command => [command.name, command]));
+    const ordered = SHORTCUT_ORDER
+      .map(name => ({ name, ...(byName.get(name) ?? {}) }))
+      .filter(command => SHORTCUT_COPY[command.name]);
+    els.shortcutList.replaceChildren(...ordered.map(renderShortcutItem));
+    return true;
+  } catch (e) {
+    els.shortcutList.replaceChildren();
+    setShortcutStatus(`Could not read shortcuts: ${e.message ?? e}`, "err");
+    return false;
+  }
+}
+
+function renderShortcutItem(command) {
+  const copy = SHORTCUT_COPY[command.name];
+  const item = document.createElement("li");
+  item.className = "shortcut-item";
+
+  const text = document.createElement("div");
+  const name = document.createElement("div");
+  name.className = "shortcut-name";
+  name.textContent = copy.label;
+  const description = document.createElement("div");
+  description.className = "shortcut-description";
+  description.textContent = command.description || copy.description;
+  text.append(name, description);
+
+  const key = document.createElement("kbd");
+  key.className = `shortcut-key${command.shortcut ? "" : " unset"}`;
+  key.textContent = command.shortcut || "Not set";
+
+  item.append(text, key);
+  return item;
+}
+
+async function openChromeShortcutSettings() {
+  setShortcutStatus("Opening Chrome shortcut settings.", "");
+  try {
+    await chrome.tabs.create({ url: CHROME_SHORTCUT_SETTINGS_URL });
+    setShortcutStatus("Chrome shortcut settings opened in a new tab.", "ok");
+  } catch (e) {
+    setShortcutStatus(
+      `Open ${CHROME_SHORTCUT_SETTINGS_URL} in Chrome to change shortcuts.`,
+      "warn",
+      e?.message ?? String(e ?? ""),
+    );
+  }
+}
+
+async function refreshShortcutStatus() {
+  const status = await getBackgroundFeatureStatus(BACKGROUND_FEATURES.SHORTCUTS);
+  if (status) {
+    setShortcutStatus(formatInlineBackgroundStatus(status), statusClass(status), status.details || "");
+  } else {
+    setShortcutStatus("", "");
+  }
+}
+
+function setShortcutStatus(msg, cls, details = "") {
+  setStatusElement(els.shortcutStatus, msg, cls, details);
 }
 
 async function initNotion(settings) {
@@ -725,6 +817,7 @@ function watchBackgroundStatusChanges() {
     if (area !== "local" || !changes[BACKGROUND_STATUS_KEY]) return;
     refreshAutoStatusFromSettings().catch(() => {});
     refreshSyncStatusFromSettings().catch(() => {});
+    refreshShortcutStatus().catch(() => {});
   });
 }
 
