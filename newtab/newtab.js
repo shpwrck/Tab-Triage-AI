@@ -42,9 +42,13 @@ const state = {
   staleTabs: [],
   pendingNoteSaves: new Map(),
   noteSaveTimers: new Map(),
+  timeRefreshTimer: null,
+  timeRefreshVisibilityHandler: null,
+  timeRefreshRunning: false,
 };
 
 const NOTE_SAVE_ACK_GRACE_MS = 10000;
+const TIME_SENSITIVE_REFRESH_MS = 60 * 1000;
 
 const els = {
   statOpen: $("#stat-open"),
@@ -207,6 +211,7 @@ async function init() {
     if (change.url || change.status === "complete") debouncedTabRefresh();
   });
   chrome.tabs.onActivated.addListener(debouncedTabRefresh);
+  startTimeSensitiveRefresh();
 }
 
 function openSettings() {
@@ -324,6 +329,47 @@ function debounce(fn, ms) {
     if (t) clearTimeout(t);
     t = setTimeout(() => fn(...args), ms);
   };
+}
+
+function startTimeSensitiveRefresh() {
+  if (state.timeRefreshTimer) return;
+  state.timeRefreshTimer = setInterval(() => {
+    refreshTimeSensitiveContent().catch(() => {});
+  }, TIME_SENSITIVE_REFRESH_MS);
+  state.timeRefreshVisibilityHandler = () => {
+    if (document.visibilityState === "visible") {
+      refreshTimeSensitiveContent().catch(() => {});
+    }
+  };
+  document.addEventListener("visibilitychange", state.timeRefreshVisibilityHandler);
+  window.addEventListener("pagehide", stopTimeSensitiveRefresh, { once: true });
+}
+
+function stopTimeSensitiveRefresh() {
+  if (state.timeRefreshTimer) {
+    clearInterval(state.timeRefreshTimer);
+    state.timeRefreshTimer = null;
+  }
+  if (state.timeRefreshVisibilityHandler) {
+    document.removeEventListener("visibilitychange", state.timeRefreshVisibilityHandler);
+    state.timeRefreshVisibilityHandler = null;
+  }
+  state.timeRefreshRunning = false;
+}
+
+async function refreshTimeSensitiveContent() {
+  if (document.visibilityState !== "visible" || state.timeRefreshRunning) return;
+  state.timeRefreshRunning = true;
+  try {
+    refreshLatestMeta();
+    await Promise.all([
+      renderBackgroundStatus(),
+      renderStats(),
+      renderStale(),
+    ]);
+  } finally {
+    state.timeRefreshRunning = false;
+  }
 }
 
 function trackNoteAutosave(id, notes) {
@@ -829,8 +875,7 @@ async function renderLatest({ focus = null } = {}) {
     return;
   }
 
-  const ago = humanAgo(Date.now() - cached.createdAt);
-  els.latestMeta.textContent = `${cached.groups.length} groups · ${ago} ago`;
+  refreshLatestMeta();
 
   els.latestBody.innerHTML = `<div class="groups"></div>`;
   const container = els.latestBody.querySelector(".groups");
@@ -839,6 +884,20 @@ async function renderLatest({ focus = null } = {}) {
   });
   hideBrokenFavicons(els.latestBody);
   restoreLatestFocus(focus);
+}
+
+function refreshLatestMeta() {
+  const cached = state.cache;
+  if (!cached || !cached.groups?.length) return;
+  els.latestMeta.textContent = formatLatestMeta(cached);
+}
+
+function formatLatestMeta(cached) {
+  const createdAt = typeof cached.createdAt === "number"
+    ? cached.createdAt
+    : Date.parse(cached.createdAt);
+  const ageMs = Number.isFinite(createdAt) ? Date.now() - createdAt : 0;
+  return `${cached.groups.length} groups · ${humanAgo(Math.max(0, ageMs))} ago`;
 }
 
 function buildGroupNode(g, idx) {
