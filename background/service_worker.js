@@ -72,7 +72,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (msg?.type === "refresh-plan") {
     refreshPlan().then(
-      plan => sendResponse({ ok: true, plan }),
+      result => sendResponse({ ok: true, ...result }),
       err => sendResponse({ ok: false, error: String(err?.message ?? err) }),
     );
     return true;
