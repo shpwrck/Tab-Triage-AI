@@ -49,6 +49,7 @@ import {
   formatBackgroundStatusMessage,
   readBackgroundStatus,
 } from "../lib/background_status.js";
+import { sessionToMarkdown } from "../lib/session_markdown.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -1315,7 +1316,7 @@ async function renderSessions({ focus = captureSessionFocus() } = {}) {
     els.sessionList.appendChild(li);
   }
   els.sessionList.querySelectorAll("button[data-action]").forEach(btn => {
-    btn.addEventListener("click", () => onSessionAction(btn.dataset.action, btn.dataset.id, sessions));
+    btn.addEventListener("click", () => onSessionAction(btn.dataset.action, btn.dataset.id, sessions, btn));
   });
   // Debounced save-on-input for notes — no save button needed.
   els.sessionList.querySelectorAll("textarea.session-notes").forEach(ta => {
@@ -1350,7 +1351,7 @@ async function renderSessions({ focus = captureSessionFocus() } = {}) {
   restoreSessionFocus(focus);
 }
 
-async function onSessionAction(action, id, sessions) {
+async function onSessionAction(action, id, sessions, actionBtn) {
   const s = sessions.find(x => x.id === id);
   if (!s) return;
   if (action === "restore-here" || action === "restore-new") {
@@ -1388,8 +1389,17 @@ async function onSessionAction(action, id, sessions) {
     await renderSessions({ focus: { type: "session-action", action: "rename", id } });
     setHeroStatus(`Renamed saved session to "${title}".`, "ok");
   } else if (action === "copy") {
-    await navigator.clipboard.writeText(sessionToMarkdown(s));
-    setHeroStatus(`Copied "${s.title}" as Markdown.`, "ok");
+    try {
+      await flashAsyncButton(actionBtn, async () => {
+        await navigator.clipboard.writeText(sessionToMarkdown(s));
+      }, {
+        sendingLabel: "Copying…",
+        okLabel: "Copied",
+      });
+      announceStatus(`Copied "${s.title}" as Markdown.`);
+    } catch {
+      // Inline button text, title, and live region carry the visible failure.
+    }
   } else if (action === "notion") {
     const btn = els.sessionList.querySelector(`button[data-action="notion"][data-id="${id}"]`);
     try {
@@ -1658,18 +1668,6 @@ async function assertNotionReady() {
     );
   }
   return { token, parentPageId, provider: settings.llm?.provider };
-}
-
-function sessionToMarkdown(s) {
-  let out = `# ${s.title}\n\n_${new Date(s.createdAt).toLocaleString()}_\n\n`;
-  for (const g of s.groups) {
-    out += `## ${g.label}\n\n`;
-    for (const b of g.summary ?? []) out += `- ${b}\n`;
-    out += `\n`;
-    for (const t of g.tabs) out += `- [${t.title}](${t.url})\n`;
-    out += `\n`;
-  }
-  return out;
 }
 
 function sessionTabCount(session) {

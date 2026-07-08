@@ -39,6 +39,7 @@ import { fuzzyScoreMulti } from "../lib/fuzzy.js";
 import { formatThresholdLabel } from "../lib/badge.js";
 import { isTriageEligibleTab, splitStaleBulkActionTabs, staleThresholdMs } from "../lib/tab_policy.js";
 import { applyStoredTheme, watchThemeChanges } from "../lib/theme.js";
+import { sessionToMarkdown } from "../lib/session_markdown.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -1137,8 +1138,17 @@ async function onSessionAction(action, id, btn) {
     hideError();
     showStatusNotice(`Renamed saved session to "${title}".`);
   } else if (action === "copy") {
-    await navigator.clipboard.writeText(sessionToMarkdown(s));
-    announceStatus(`Copied "${s.title}" as Markdown.`);
+    try {
+      await flashAsyncButton(btn, async () => {
+        await navigator.clipboard.writeText(sessionToMarkdown(s));
+      }, {
+        sendingLabel: "Copying…",
+        okLabel: "Copied",
+      });
+      announceStatus(`Copied "${s.title}" as Markdown.`);
+    } catch {
+      // Inline button text, title, and live region carry the visible failure.
+    }
   } else if (action === "notion") {
     btn = btn || els.sessionList
       .querySelector(`button[data-action="notion"][data-id="${id}"]`);
@@ -1291,10 +1301,6 @@ function groupsToMarkdown(groups) {
     out += `\n`;
   }
   return out;
-}
-
-function sessionToMarkdown(s) {
-  return groupsToMarkdown(s.groups);
 }
 
 function sessionTabCount(session) {
