@@ -83,6 +83,9 @@ const state = {
   triageTabLimit: Infinity,
 };
 
+let latestTabLoadId = 0;
+const removedTabIds = new Set();
+
 async function init() {
   await applyStoredTheme();
   watchThemeChanges();
@@ -108,6 +111,7 @@ async function init() {
   els.staleCloseAll.addEventListener("click", onCloseAllStale);
   els.staleArchiveAll.addEventListener("click", onArchiveAllStale);
   els.dupesCloseAll.addEventListener("click", onCloseAllDupes);
+  chrome.tabs.onRemoved.addListener(onTabRemoved);
   // Auto-focus the search field — the Cmd/Ctrl+Shift+K binding opens
   // the popup, and the popup expects the search field to receive the
   // user's next keystrokes.
@@ -129,7 +133,9 @@ async function init() {
   await syncPopupTriageState();
 }
 
-async function loadCurrentWindowTabs() {
+async function loadCurrentWindowTabs({ preserveSelection = false } = {}) {
+  const loadId = ++latestTabLoadId;
+  const checkedById = new Map(state.tabs.map(t => [t.id, t.checked]));
   const tabs = await chrome.tabs.query({ currentWindow: true });
   // Build a map of group metadata so each tab can show what group it
   // currently belongs to (if any).
@@ -142,11 +148,15 @@ async function loadCurrentWindowTabs() {
       // tabGroups API not available — fall back to no group info.
     }
   }
-  state.tabs = tabs
+  const nextTabs = tabs
+    .filter(t => !removedTabIds.has(t.id))
     .filter(isTriageEligibleTab)
     .map(t => {
       const grouped = typeof t.groupId === "number" && t.groupId !== -1;
       const grp = grouped ? groupMap.get(t.groupId) : null;
+      const checked = preserveSelection && checkedById.has(t.id)
+        ? checkedById.get(t.id)
+        : !grouped;
       return {
         id: t.id,
         windowId: t.windowId,
@@ -159,10 +169,31 @@ async function loadCurrentWindowTabs() {
         groupColor: grp?.color ?? null,
         // Already-grouped tabs are unchecked by default to preserve the
         // user's manual organization; pinned tabs are excluded by policy.
-        checked: !grouped,
+        checked,
       };
     });
+  if (loadId !== latestTabLoadId) return;
+  state.tabs = nextTabs;
   renderTabs();
+}
+
+function pruneCurrentWindowTabsById(tabIds) {
+  const ids = new Set((tabIds ?? []).filter(Number.isFinite));
+  if (!ids.size) return false;
+  ids.forEach(id => removedTabIds.add(id));
+  const nextTabs = state.tabs.filter(t => !ids.has(t.id));
+  if (nextTabs.length === state.tabs.length) return false;
+  state.tabs = nextTabs;
+  renderTabs();
+  return true;
+}
+
+function tabIds(tabs) {
+  return (tabs ?? []).map(t => t?.id).filter(Number.isFinite);
+}
+
+function onTabRemoved(tabId) {
+  pruneCurrentWindowTabsById([tabId]);
 }
 
 function renderTabs() {
@@ -323,6 +354,7 @@ async function onTriage() {
     showError("Add an API key in Settings first.");
     return;
   }
+  await loadCurrentWindowTabs({ preserveSelection: true });
   const selected = state.tabs.filter(t => t.checked);
   if (selected.length < 2) {
     showError("Select at least 2 tabs to triage.");
@@ -457,8 +489,12 @@ function showPicker() {
   els.picker.classList.remove("hidden");
   hideStatusNotice();
   hideResultNotice();
-  renderStaleTabs().catch(() => {});
-  renderDupeTabs().catch(() => {});
+  refreshPickerState().catch(e => showError(`Couldn't refresh tabs: ${e.message ?? e}`));
+}
+
+async function refreshPickerState() {
+  await loadCurrentWindowTabs({ preserveSelection: true });
+  await Promise.all([renderStaleTabs(), renderDupeTabs()]);
 }
 
 async function showSessions() {
@@ -556,6 +592,7 @@ async function onGroupAction(idx, action, tabIdAttr) {
     const tabId = Number(tabIdAttr);
     try {
       await closeOneTab({ tabId });
+      pruneCurrentWindowTabsById([tabId]);
       g.tabs = g.tabs.filter(t => t.id !== tabId);
       if (g.tabs.length === 0) g.status = "empty";
       replaceGroupNode(idx);
@@ -594,7 +631,9 @@ async function onGroupAction(idx, action, tabIdAttr) {
   setGroupBusy(idx, true);
   try {
     if (action === "archive") {
+      const ids = tabIds(g.tabs);
       await archiveGroup({ group: g, tabs: g.tabs });
+      pruneCurrentWindowTabsById(ids);
       g.status = "archived";
     } else if (action === "new-window") {
       await moveGroupToNewWindow({ tabs: g.tabs });
@@ -603,7 +642,9 @@ async function onGroupAction(idx, action, tabIdAttr) {
       await applyAsTabGroup({ group: g, tabs: g.tabs, colorIndex: idx });
       g.status = "grouped";
     } else if (action === "close") {
+      const ids = tabIds(g.tabs);
       await closeGroup({ tabs: g.tabs });
+      pruneCurrentWindowTabsById(ids);
       g.status = "closed";
     }
     replaceGroupNode(idx);
@@ -1255,7 +1296,8 @@ async function renderStaleTabs() {
       const id = Number(e.currentTarget.dataset.tabId);
       try {
         await chrome.tabs.remove(id);
-        await renderStaleTabs();
+        pruneCurrentWindowTabsById([id]);
+        await Promise.all([renderStaleTabs(), renderDupeTabs()]);
       } catch (err) {
         showError(`Couldn't close tab: ${err.message ?? err}`);
       }
@@ -1323,7 +1365,8 @@ async function onDupeRowAction(action, dataset) {
     if (!ids.length) return;
     try {
       await chrome.tabs.remove(ids);
-      await renderDupeTabs();
+      pruneCurrentWindowTabsById(ids);
+      await Promise.all([renderStaleTabs(), renderDupeTabs()]);
     } catch (e) {
       showError(`Couldn't close duplicates: ${e.message ?? e}`);
     }
@@ -1340,8 +1383,10 @@ async function onCloseAllStale() {
   }
   if (!confirm(`Close ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"} without saving?${protectedStaleNote(protectedTabs.length)}`)) return;
   try {
-    await chrome.tabs.remove(actionTabs.map(t => t.id));
-    await renderStaleTabs();
+    const ids = tabIds(actionTabs);
+    await chrome.tabs.remove(ids);
+    pruneCurrentWindowTabsById(ids);
+    await Promise.all([renderStaleTabs(), renderDupeTabs()]);
   } catch (e) {
     showError(`Couldn't close stale tabs: ${e.message ?? e}`);
   }
@@ -1373,9 +1418,11 @@ async function onArchiveAllStale() {
   };
   await saveSession(session);
   try {
-    await chrome.tabs.remove(actionTabs.map(t => t.id));
+    const ids = tabIds(actionTabs);
+    await chrome.tabs.remove(ids);
+    pruneCurrentWindowTabsById(ids);
     flashButton(els.staleArchiveAll, protectedTabs.length ? "Archived safe" : "Archived");
-    await renderStaleTabs();
+    await Promise.all([renderStaleTabs(), renderDupeTabs()]);
   } catch (e) {
     showError(`Couldn't archive stale tabs: ${e.message ?? e}`);
   }
@@ -1388,7 +1435,8 @@ async function onCloseAllDupes() {
   const ids = duplicates.flatMap(d => d.closeIds);
   try {
     await chrome.tabs.remove(ids);
-    await renderDupeTabs();
+    pruneCurrentWindowTabsById(ids);
+    await Promise.all([renderStaleTabs(), renderDupeTabs()]);
   } catch (e) {
     showError(`Couldn't close duplicates: ${e.message ?? e}`);
   }
