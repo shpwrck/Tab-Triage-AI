@@ -29,6 +29,25 @@
             <span class="stat-label">saved sessions</span>
           </div>
         </div>
+        <div class="plan-strip" id="plan-strip" aria-live="polite">
+          <div class="plan-metric">
+            <span class="plan-label">Plan</span>
+            <strong id="plan-name">Checking plan</strong>
+            <span id="plan-price" class="muted"></span>
+          </div>
+          <div class="plan-metric">
+            <span class="plan-label">Weekly quota</span>
+            <strong id="plan-quota">—</strong>
+          </div>
+          <div class="plan-metric">
+            <span class="plan-label">Tab cap</span>
+            <strong id="plan-tab-limit">—</strong>
+          </div>
+          <div class="plan-actions">
+            <button id="upgrade-lifetime" class="primary small">Buy lifetime</button>
+            <button id="plan-settings" class="ghost small">Plan settings</button>
+          </div>
+        </div>
         <div class="hero-actions">
           <button id="triage-now" class="primary">Triage now</button>
           <button id="clear-history" class="ghost">Clear history</button>

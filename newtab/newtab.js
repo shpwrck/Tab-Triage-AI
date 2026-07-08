@@ -14,6 +14,8 @@ import { setTriageRunning, formatThresholdLabel } from "../lib/badge.js";
 import { applyStoredTheme, watchThemeChanges } from "../lib/theme.js";
 import { runQuotaLimitedTriage, TriageQuotaError } from "../lib/triage_quota.js";
 import { getStaleTabs, isTriageEligibleTab, splitStaleBulkActionTabs, staleThresholdMs } from "../lib/tab_policy.js";
+import { refreshPlan, openCheckout } from "../lib/billing.js";
+import { getPlanQuotaSummary, formatLifetimePrice } from "../lib/plan_quota.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -37,6 +39,12 @@ const els = {
   triageNow: $("#triage-now"),
   clearHistory: $("#clear-history"),
   openSettings: $("#open-settings"),
+  planName: $("#plan-name"),
+  planPrice: $("#plan-price"),
+  planQuota: $("#plan-quota"),
+  planTabLimit: $("#plan-tab-limit"),
+  upgradeLifetime: $("#upgrade-lifetime"),
+  planSettings: $("#plan-settings"),
   setupCard: $("#setup-card"),
   setupOpenSettings: $("#setup-open-settings"),
   heroStatus: $("#hero-status"),
@@ -62,15 +70,26 @@ const els = {
 async function init() {
   await applyStoredTheme();
   watchThemeChanges();
+  await refreshPlan().catch(() => {});
   els.openSettings.addEventListener("click", openSettings);
+  els.planSettings.addEventListener("click", openSettings);
   els.setupOpenSettings.addEventListener("click", openSettings);
+  els.upgradeLifetime.addEventListener("click", onUpgradeLifetime);
   els.triageNow.addEventListener("click", onTriageNow);
   els.clearHistory.addEventListener("click", onClearHistory);
   els.closeAllDupes.addEventListener("click", onCloseAllDuplicates);
   els.archiveAllStale.addEventListener("click", onArchiveAllStale);
   els.closeAllStale.addEventListener("click", onCloseAllStale);
+  const refreshBillingOnReturn = debounce(() => {
+    if (document.visibilityState === "visible") {
+      refreshBillingState({ verify: true }).catch(() => {});
+    }
+  }, 250);
+  window.addEventListener("focus", refreshBillingOnReturn);
+  document.addEventListener("visibilitychange", refreshBillingOnReturn);
   await Promise.all([
     renderSetupState(),
+    renderBillingState(),
     renderStats(),
     renderLatest(),
     renderStale(),
@@ -80,7 +99,11 @@ async function init() {
   // Live-update when the auto-triage or popup writes a new cache.
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    if (changes.tt_settings) renderSetupState().catch(() => {});
+    if (changes.tt_settings) {
+      renderSetupState().catch(() => {});
+      renderBillingState().catch(() => {});
+    }
+    if (changes.tt_quota) renderBillingState().catch(() => {});
     if (changes.tt_last_triage) renderLatest().catch(() => {});
     if (changes.tt_sessions && !isOwnNoteAutosaveChange(changes.tt_sessions)) {
       renderSessions().catch(() => {});
@@ -111,6 +134,60 @@ async function renderSetupState() {
   els.setupCard.classList.toggle("hidden", !state.missingApiKey);
   els.triageNow.disabled = state.missingApiKey || state.triageRunning;
   els.triageNow.title = state.missingApiKey ? "Add an API key in Settings first." : "";
+}
+
+async function refreshBillingState({ verify = false } = {}) {
+  if (verify) await refreshPlan().catch(() => {});
+  await renderBillingState();
+}
+
+async function renderBillingState() {
+  const settings = await getSettings();
+  const summary = await getPlanQuotaSummary(settings);
+  const price = formatLifetimePrice(summary.lifetimePrice);
+
+  els.planName.textContent = summary.isLifetime ? "Lifetime plan" : "Free plan";
+  els.planQuota.textContent = summary.isLifetime
+    ? "Unlimited triages"
+    : `${summary.quota.remaining}/${summary.quota.limit} triages left this week`;
+  els.planTabLimit.textContent = Number.isFinite(summary.tabLimit)
+    ? `${summary.tabLimit} tabs per triage`
+    : "Unlimited tabs per triage";
+
+  if (summary.isLifetime) {
+    els.planPrice.textContent = "Unlimited triages and no tab cap.";
+    els.upgradeLifetime.classList.add("hidden");
+    return;
+  }
+
+  els.planPrice.textContent = summary.billingEnabled && price
+    ? `${price} one-time upgrade for unlimited.`
+    : "Lifetime checkout launching soon.";
+  els.upgradeLifetime.classList.remove("hidden");
+  els.upgradeLifetime.disabled = false;
+  els.upgradeLifetime.textContent = summary.billingEnabled && price
+    ? `Buy lifetime - ${price}`
+    : "Lifetime soon";
+  els.upgradeLifetime.title = summary.billingEnabled
+    ? "Open lifetime checkout."
+    : "Open Settings for launch details.";
+}
+
+async function onUpgradeLifetime() {
+  const originalText = els.upgradeLifetime.textContent;
+  const originalTitle = els.upgradeLifetime.title;
+  els.upgradeLifetime.disabled = true;
+  els.upgradeLifetime.textContent = "Opening checkout";
+  try {
+    await openCheckout();
+    await refreshBillingState({ verify: true });
+  } catch (e) {
+    setHeroStatus(`Checkout failed: ${e.message ?? e}`, "err");
+  } finally {
+    els.upgradeLifetime.disabled = false;
+    els.upgradeLifetime.textContent = originalText;
+    els.upgradeLifetime.title = originalTitle;
+  }
 }
 
 function debounce(fn, ms) {
@@ -807,6 +884,7 @@ async function onTriageNow() {
     state.triageRunning = false;
     els.triageNow.disabled = state.missingApiKey;
     els.triageNow.textContent = "Triage now";
+    await renderBillingState().catch(() => {});
   }
 }
 
