@@ -8,7 +8,7 @@
   <body>
     <nav class="page-nav" aria-label="Settings sections">
       <ul>
-        <li><a href="#section-llm">LLM</a></li>
+        <li><a href="#section-llm">AI</a></li>
         <li><a href="#section-appearance">Appearance</a></li>
         <li><a href="#section-plan">Plan</a></li>
         <li><a href="#section-badge">Badge</a></li>
@@ -28,14 +28,14 @@
       </header>
 
       <section class="card" id="section-llm">
-        <h2>LLM provider</h2>
+        <h2>AI provider</h2>
         <p class="muted">
-          Tab Triage works with any provider you bring a key for. Your key stays on this device and is sent
-          directly to the provider's API — no proxy in between.
+          Tab Triage AI works with any AI provider you bring a key for. Your key stays on this device and is sent
+          directly to the AI provider's API — no proxy in between.
         </p>
 
         <label class="field" style="margin-bottom:12px;">
-          <span class="field-label">Provider</span>
+          <span class="field-label">AI provider</span>
           <select id="llm-provider"></select>
           <span class="field-hint" id="llm-key-help"></span>
         </label>
@@ -51,7 +51,7 @@
         <label class="field" style="margin-bottom:12px;">
           <span class="field-label">Model</span>
           <input id="llm-model" type="text" autocomplete="off" spellcheck="false" />
-          <span class="field-hint">Defaults to a cheap/fast model for the provider. Override if you want.</span>
+          <span class="field-hint">Defaults to a cheap/fast model for the selected AI provider. Override if you want.</span>
         </label>
 
         <label class="field hidden" id="llm-baseurl-field" style="margin-bottom:12px;">
@@ -73,9 +73,9 @@
         </div>
 
         <details class="disclosure">
-          <summary>Free LLM via OpenRouter</summary>
+          <summary>Free AI model via OpenRouter</summary>
           <p class="muted">
-            Don't want to pay any provider? OpenRouter exposes several models for free (rate-limited but
+            Don't want to pay for AI calls? OpenRouter exposes several models for free (rate-limited but
             generous for tab triage). Setup, top to bottom:
           </p>
           <ol class="muted" style="padding-left:20px; margin: 0 0 12px;">
@@ -83,7 +83,7 @@
             <li>Go to <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a> and create an API key. Copy it.</li>
             <li>In the fields above:
               <ul style="margin-top:4px;">
-                <li>Provider: <strong>OpenAI-compatible</strong></li>
+                <li>AI provider: <strong>OpenAI-compatible</strong></li>
                 <li>API key: paste the OpenRouter key</li>
                 <li>Base URL: <code>https://openrouter.ai/api/v1</code></li>
                 <li>Model: pick one with the <code>:free</code> suffix from <a href="https://openrouter.ai/models?max_price=0" target="_blank" rel="noopener">the free model list</a>. Good defaults today: <code>deepseek/deepseek-chat-v3-0324:free</code>, <code>google/gemini-2.0-flash-exp:free</code>, <code>meta-llama/llama-3.3-70b-instruct:free</code>.</li>
@@ -138,8 +138,8 @@
       <section class="card" id="section-badge">
         <h2>Toolbar badge</h2>
         <p class="muted">
-          Shows a count on the extension icon for how many tabs you haven't touched in a while —
-          a glanceable signal that there's something to triage. No LLM calls, updates live.
+          Shows a count on the extension icon for how many tabs you haven't used in a while —
+          a glanceable signal that there's something to triage. No AI calls, updates live.
         </p>
         <label class="checkbox-row">
           <input id="badge-enabled" type="checkbox" />
@@ -157,7 +157,7 @@
               <option value="168">1 week</option>
               <option value="custom" id="badge-threshold-custom-opt">Custom… (Lifetime)</option>
             </select>
-            <span class="field-hint">Tabs not activated in this long count toward the badge.</span>
+            <span class="field-hint">Tabs you haven't used in this long count toward the badge.</span>
           </label>
           <div id="badge-threshold-custom" class="hidden" style="margin-top:8px;">
             <div class="row" style="margin-bottom:0; align-items:center; gap:6px;">
@@ -185,8 +185,8 @@
       <section class="card" id="section-auto">
         <h2>Auto-triage</h2>
         <p class="muted">
-          When you open new tabs, Tab Triage can quietly re-cluster the tabs in that window into native Chrome
-          tab groups. This may move a tab into a different group if the LLM thinks it fits better — your
+          When you open new tabs, Tab Triage AI can quietly regroup the tabs in that window into native Chrome
+          tab groups. This may move a tab into a different group if the AI model thinks it fits better — your
           manual groupings are not preserved. No tabs are ever closed. Pinned tabs are left alone.
         </p>
         <label class="checkbox-row">
@@ -225,7 +225,7 @@
                 <option value="10">10 tabs</option>
                 <option value="15">15 tabs</option>
               </select>
-              <span class="field-hint">Don't bother re-clustering a near-empty window.</span>
+              <span class="field-hint">Don't regroup a near-empty window.</span>
             </label>
           </div>
           <label class="checkbox-row">
@@ -287,7 +287,7 @@
         <p id="sync-status" class="status"></p>
         <p class="muted" style="margin-top:8px; font-size:12px;">
           Sessions larger than ~8 KB (rare; a 50-tab session is around 5 KB) stay local-only.
-          Disabling sync also clears Tab Triage's keys from the sync silo.
+          Disabling sync also clears Tab Triage AI's keys from the sync silo.
         </p>
       </section>
 
@@ -309,7 +309,7 @@
         <h2>Privacy</h2>
         <ul class="muted">
           <li>Your API key is stored only in this browser's local storage.</li>
-          <li>Tab titles and URLs are sent directly to your selected LLM provider when you click Triage. No proxy or Tab Triage server sits in between.</li>
+          <li>Tab titles and URLs are sent directly to your selected AI provider when you click Triage. No proxy or Tab Triage AI server sits in between.</li>
           <li>No analytics, no tracking pixels, no third-party servers.</li>
         </ul>
       </section>

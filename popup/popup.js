@@ -659,7 +659,7 @@ async function onExportNotion() {
     await flashAsyncButton(els.exportNotion, async () => {
       const { token, parentPageId, provider } = await assertNotionReady();
       await sendTriageToNotion({
-        title: `Tab triage · ${new Date().toLocaleString()}`,
+        title: `Tab Triage AI · ${new Date().toLocaleString()}`,
         groups: state.lastResult.groups,
         token,
         parentPageId,
@@ -694,7 +694,7 @@ async function assertNotionReady() {
 }
 
 function groupsToMarkdown(groups) {
-  let out = `# Tab triage · ${new Date().toLocaleString()}\n\n`;
+  let out = `# Tab Triage AI · ${new Date().toLocaleString()}\n\n`;
   for (const g of groups) {
     out += `## ${g.label}\n\n`;
     for (const b of g.summary ?? []) out += `- ${b}\n`;
@@ -1238,7 +1238,7 @@ async function onArchiveAllStale() {
       label: `Stale tabs (${label})`,
       emoji: "",
       summary: [
-        `${actionTabs.length} tab${actionTabs.length === 1 ? "" : "s"} not activated in ${label}`,
+        `${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"} (${label})`,
         "Captured from the popup",
         "Restore via Saved sessions to revisit",
       ],
