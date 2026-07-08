@@ -61,6 +61,8 @@ const els = {
   notionStatus: $("#notion-status"),
   themeRadios: document.querySelectorAll('input[name="theme"]'),
   themeHelp: $("#theme-help"),
+  newtabEnabled: $("#newtab-enabled"),
+  newtabStatus: $("#newtab-status"),
   exportBtn: $("#export-settings"),
   importBtn: $("#import-settings"),
   importFile: $("#import-file"),
@@ -106,6 +108,7 @@ async function init() {
 
   await renderPlan();
   await initTheme();
+  await initNewTab(settings);
   await initAutoTriage(settings);
   await initBadge(settings);
   await initSync(settings);
@@ -201,6 +204,18 @@ async function initTheme() {
       applyTheme(theme);
     });
   }
+}
+
+async function initNewTab(settings) {
+  els.newtabEnabled.checked = settings.newtab?.enabled !== false;
+  els.newtabEnabled.addEventListener("change", async () => {
+    const enabled = els.newtabEnabled.checked;
+    await saveSettings({ newtab: { enabled } });
+    els.newtabStatus.textContent = enabled
+      ? "New-tab dashboard enabled."
+      : "New tabs will open as blank pages.";
+    els.newtabStatus.className = "status ok";
+  });
 }
 
 async function initNotion(settings) {
