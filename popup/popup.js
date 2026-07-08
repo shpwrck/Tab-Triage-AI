@@ -22,6 +22,7 @@ import { saveTriageCache } from "../lib/triage_cache.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
 import { fuzzyScoreMulti } from "../lib/fuzzy.js";
 import { setTriageRunning, formatThresholdLabel } from "../lib/badge.js";
+import { applyStoredTheme, watchThemeChanges } from "../lib/theme.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -75,6 +76,9 @@ const state = {
 };
 
 async function init() {
+  await applyStoredTheme();
+  watchThemeChanges();
+
   els.openOptions.addEventListener("click", () => chrome.runtime.openOptionsPage());
   els.setupCta.addEventListener("click", () => chrome.runtime.openOptionsPage());
   els.triage.addEventListener("click", onTriage);
