@@ -136,7 +136,7 @@
         <p id="plan-status" class="muted">Loading plan…</p>
         <p>
           <strong>Free:</strong> 5 triages per week, up to 10 tabs per triage.<br />
-          <strong id="lifetime-headline">Lifetime · one-time payment:</strong> unlimited triages, no tab cap, dark mode, custom stale intervals, settings backup, and Notion export. No subscription, no renewals — buy once, keep forever.
+          <strong id="lifetime-headline">Lifetime · one-time payment:</strong> unlimited triages, no tab cap, dark mode, custom stale intervals, settings and sessions backup, and Notion export. No subscription, no renewals — buy once, keep forever.
         </p>
         <div class="actions" id="plan-actions"></div>
         <p id="waitlist-wrap" class="muted hidden" style="margin-top:12px;">
@@ -306,14 +306,32 @@
       </section>
 
       <section class="card" id="section-backup">
-        <h2>Settings backup</h2>
+        <h2>Saved sessions and backup</h2>
         <p class="muted" id="data-hint">
-          Export your current settings to a JSON file, or restore from a previous export to set up a new
-          profile quickly. The file includes your API keys — keep it private.
+          Export your current settings and saved sessions to a JSON file, or restore from a previous export to
+          set up a new profile quickly. The file includes your API keys — keep it private.
         </p>
+        <div class="session-limit-settings">
+          <div class="row">
+            <label class="field">
+              <span class="field-label">Saved session limit</span>
+              <select id="session-limit"></select>
+              <span class="field-hint">Keeps local storage bounded.</span>
+            </label>
+            <label class="field">
+              <span class="field-label">When the limit is reached</span>
+              <select id="session-overflow">
+                <option value="discard-oldest">Save newest, delete oldest</option>
+                <option value="block-new">Stop saving new sessions</option>
+              </select>
+              <span class="field-hint">Popup and dashboard saves explain this before acting.</span>
+            </label>
+          </div>
+          <p id="session-limit-status" class="status"></p>
+        </div>
         <div class="actions">
-          <button id="export-settings" class="ghost">Export settings</button>
-          <button id="import-settings" class="ghost">Import settings</button>
+          <button id="export-settings" class="ghost">Export backup</button>
+          <button id="import-settings" class="ghost">Import backup</button>
           <input id="import-file" type="file" accept=".json" style="display:none;" />
           <span id="data-status" class="status"></span>
         </div>

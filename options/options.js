@@ -1,4 +1,13 @@
-import { getSettings, saveSettings } from "../lib/storage.js";
+import {
+  getSettings,
+  saveSettings,
+  listSessions,
+  importSessions,
+  getSessionLimitState,
+  SESSION_LIMIT_CHOICES,
+  SESSION_OVERFLOW_BLOCK_NEW,
+  SESSION_OVERFLOW_DISCARD_OLDEST,
+} from "../lib/storage.js";
 import { refreshPlan, openCheckout, openLogin, billingEnabled, lifetimePriceUsd } from "../lib/billing.js";
 import { pauseAutoTriage, resumeAutoTriage } from "../lib/auto_triage.js";
 import { updateBadge } from "../lib/badge.js";
@@ -71,6 +80,9 @@ const els = {
   themeHelp: $("#theme-help"),
   newtabEnabled: $("#newtab-enabled"),
   newtabStatus: $("#newtab-status"),
+  sessionLimit: $("#session-limit"),
+  sessionOverflow: $("#session-overflow"),
+  sessionLimitStatus: $("#session-limit-status"),
   exportBtn: $("#export-settings"),
   importBtn: $("#import-settings"),
   importFile: $("#import-file"),
@@ -820,10 +832,12 @@ async function initDataSection() {
   const fresh = await getSettings();
   const isLifetime = fresh.plan === "lifetime";
 
+  await initSessionLimitControls(fresh);
+
   if (!isLifetime) {
     els.exportBtn.disabled = true;
     els.importBtn.disabled = true;
-    els.dataHint.textContent = "Settings backup is a Lifetime feature. Upgrade in the Plan section above.";
+    els.dataHint.textContent = "Settings and sessions backup is a Lifetime feature. Upgrade in the Plan section above.";
     return;
   }
 
@@ -832,20 +846,70 @@ async function initDataSection() {
   els.importFile.addEventListener("change", onImport);
 }
 
+async function initSessionLimitControls(settings) {
+  els.sessionLimit.innerHTML = "";
+  for (const limit of SESSION_LIMIT_CHOICES) {
+    const opt = document.createElement("option");
+    opt.value = String(limit);
+    opt.textContent = `${limit} saved sessions`;
+    els.sessionLimit.appendChild(opt);
+  }
+  els.sessionLimit.value = String(settings.sessions?.limit ?? 100);
+  els.sessionOverflow.value = settings.sessions?.overflow === SESSION_OVERFLOW_BLOCK_NEW
+    ? SESSION_OVERFLOW_BLOCK_NEW
+    : SESSION_OVERFLOW_DISCARD_OLDEST;
+
+  const save = async () => {
+    await saveSettings({
+      sessions: {
+        limit: Number(els.sessionLimit.value),
+        overflow: els.sessionOverflow.value,
+      },
+    });
+    await renderSessionLimitStatus();
+  };
+  els.sessionLimit.addEventListener("change", save);
+  els.sessionOverflow.addEventListener("change", save);
+  await renderSessionLimitStatus();
+}
+
+async function renderSessionLimitStatus() {
+  const state = await getSessionLimitState(0);
+  const countText = `${state.count}/${state.limit} saved sessions.`;
+  const overLimit = Math.max(0, state.count - state.limit);
+  let policyText;
+  if (state.overflow === SESSION_OVERFLOW_BLOCK_NEW) {
+    policyText = "When full, new session saves stop until you delete older sessions or raise the limit.";
+  } else if (overLimit) {
+    policyText = `The next session save will keep the newest ${state.limit} and delete ${overLimit + 1} oldest saved sessions.`;
+  } else {
+    policyText = `When full, saving a new session keeps the newest ${state.limit} and deletes the oldest one first.`;
+  }
+  els.sessionLimitStatus.textContent = `${countText} ${policyText}`;
+  els.sessionLimitStatus.className = `status ${state.count >= state.limit ? "warn" : ""}`;
+}
+
 async function onExport() {
   const settings = await getSettings();
+  const sessions = await listSessions();
   // Strip the legacy root-level apiKey (always "" post-migration; would
   // confuse readers into thinking there are two separate keys).
   const { apiKey, ...exportable } = settings;
-  const json = JSON.stringify(exportable, null, 2);
+  const backup = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    settings: exportable,
+    sessions,
+  };
+  const json = JSON.stringify(backup, null, 2);
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "tab-triage-settings.json";
+  a.download = "tab-triage-backup.json";
   a.click();
   URL.revokeObjectURL(url);
-  setDataStatus("Exported. Keep this file private — it contains your API keys.", "ok");
+  setDataStatus(`Exported ${sessions.length} saved session${sessions.length === 1 ? "" : "s"}. Keep this file private — it contains your API keys.`, "ok");
 }
 
 async function onImport() {
@@ -864,25 +928,84 @@ async function onImport() {
     els.importFile.value = "";
     return;
   }
+  const hasSettingsEnvelope = parsed.settings &&
+    typeof parsed.settings === "object" &&
+    !Array.isArray(parsed.settings);
+  const settingsSource = hasSettingsEnvelope ? parsed.settings : { ...parsed };
+  if (!hasSettingsEnvelope && Array.isArray(settingsSource.sessions)) {
+    delete settingsSource.sessions;
+  }
+  delete settingsSource.version;
+  delete settingsSource.exportedAt;
+
   // Numeric field sanity checks for the most critical settings.
-  if (parsed.autoTriage?.debounceSeconds !== undefined &&
-      !Number.isFinite(parsed.autoTriage.debounceSeconds)) {
+  if (settingsSource.autoTriage?.debounceSeconds !== undefined &&
+      !Number.isFinite(settingsSource.autoTriage.debounceSeconds)) {
     setDataStatus("Import rejected: autoTriage.debounceSeconds must be a number.", "err");
     els.importFile.value = "";
     return;
   }
-  if (parsed.badge?.thresholdHours !== undefined &&
-      !Number.isFinite(parsed.badge.thresholdHours)) {
+  if (settingsSource.badge?.thresholdHours !== undefined &&
+      !Number.isFinite(settingsSource.badge.thresholdHours)) {
     setDataStatus("Import rejected: badge.thresholdHours must be a number.", "err");
+    els.importFile.value = "";
+    return;
+  }
+  if (settingsSource.sessions?.limit !== undefined &&
+      !Number.isFinite(Number(settingsSource.sessions.limit))) {
+    setDataStatus("Import rejected: sessions.limit must be a number.", "err");
     els.importFile.value = "";
     return;
   }
   // Strip plan — it is always authoritative from ExtPay, never from a file.
   // Also strip the legacy root-level apiKey so migration logic stays clean.
-  const { plan, apiKey, ...rest } = parsed;
-  await saveSettings(rest);
-  setDataStatus("Imported. Reloading…", "ok");
-  setTimeout(() => location.reload(), 800);
+  const { plan, apiKey, ...rest } = settingsSource;
+  try {
+    if (Array.isArray(parsed.sessions)) {
+      await confirmSessionImportCapacity(parsed.sessions.length, rest);
+    }
+    await saveSettings(rest);
+    let sessionResult = null;
+    if (Array.isArray(parsed.sessions)) {
+      sessionResult = await importSessions(parsed.sessions);
+    }
+    const sessionText = sessionResult
+      ? ` Imported ${sessionResult.imported} saved session${sessionResult.imported === 1 ? "" : "s"}${sessionResult.discarded ? `; ${sessionResult.discarded} older session${sessionResult.discarded === 1 ? "" : "s"} were outside the limit` : ""}.`
+      : "";
+    setDataStatus(`Imported.${sessionText} Reloading…`, "ok");
+    setTimeout(() => location.reload(), 800);
+  } catch (e) {
+    setDataStatus(`Import failed: ${e.message ?? e}`, "err");
+    els.importFile.value = "";
+  }
+}
+
+async function confirmSessionImportCapacity(incomingCount, importedSettings) {
+  const current = await getSessionLimitState(0);
+  const importedLimit = Number(importedSettings.sessions?.limit);
+  const roundedLimit = Number.isFinite(importedLimit) ? Math.round(importedLimit) : current.limit;
+  const limit = SESSION_LIMIT_CHOICES.includes(roundedLimit)
+    ? roundedLimit
+    : current.limit;
+  const overflow = importedSettings.sessions?.overflow === SESSION_OVERFLOW_BLOCK_NEW
+    ? SESSION_OVERFLOW_BLOCK_NEW
+    : (importedSettings.sessions?.overflow === SESSION_OVERFLOW_DISCARD_OLDEST
+      ? SESSION_OVERFLOW_DISCARD_OLDEST
+      : current.overflow);
+  const projected = current.count + Math.max(0, Number(incomingCount) || 0);
+  const wouldBlock = overflow === SESSION_OVERFLOW_BLOCK_NEW && projected > limit;
+  const wouldDiscard = overflow === SESSION_OVERFLOW_DISCARD_OLDEST
+    ? Math.max(0, projected - limit)
+    : 0;
+  if (wouldBlock) {
+    throw new Error(`Import would exceed the saved session limit (${projected}/${limit}). Delete older sessions or change the limit before importing this backup.`);
+  }
+  if (!wouldDiscard) return;
+  const deleted = wouldDiscard === 1
+    ? "the oldest saved session"
+    : `${wouldDiscard} oldest saved sessions`;
+  const ok = confirm(`This backup contains ${incomingCount} saved sessions. Importing it will keep your newest ${limit} sessions and delete ${deleted}. Continue?`);
+  if (!ok) throw new Error("Import canceled before changing saved sessions.");
 }
 
 function setDataStatus(msg, cls) {
