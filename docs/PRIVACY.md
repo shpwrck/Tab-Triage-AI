@@ -2,14 +2,14 @@
 
 **Effective date:** 2026-05-15
 
-Tab Triage AI ("the extension") is a Chrome extension that clusters your open tabs by intent, summarizes each cluster, and surfaces stale and duplicate tabs for cleanup. It is published by **Tab Triage AI** ("we"). This policy explains what data the extension handles, where it goes, and what stays on your device.
+Tab Triage AI ("the extension") is a Chrome extension that groups your open tabs by intent, summarizes each group, and surfaces stale and duplicate tabs for cleanup. It is published by **Tab Triage AI** ("we"). This policy explains what data the extension handles, where it goes, and what stays on your device.
 
 ## Short version
 
 - The extension does **not** operate any backend or proxy. We do not run servers that handle your data.
 - It does **not** collect analytics, telemetry, error reports, or any usage data of any kind.
-- Your LLM provider API key, your settings, your saved sessions, your Notion integration token, and the cache of recent triage results live in your own browser's local storage.
-- When you actively trigger a triage, the **titles and URLs** of the tabs you select are sent **directly from your browser** to the LLM provider you configured (Anthropic, OpenAI, Google, or an OpenAI-compatible endpoint of your choice). Nothing else is sent.
+- Your AI provider API key, your settings, your saved sessions, your Notion integration token, and the cache of recent triage results live in your own browser's local storage.
+- When you actively trigger a triage, the **titles and URLs** of the tabs you select are sent **directly from your browser** to the AI provider you configured (Anthropic, OpenAI, Google, or an OpenAI-compatible endpoint of your choice). Nothing else is sent.
 - When you actively click "Send to Notion," the contents of that session or triage are sent **directly from your browser** to Notion using the integration token you configured. Nothing is sent to Notion unless you click the button.
 - When you opt in to cross-device sync, your saved sessions are mirrored through Chrome's built-in `chrome.storage.sync` channel (the same channel that syncs bookmarks and history). We never see this data; it travels between your Chromes via Google.
 - When you purchase a lifetime license, payment is processed by ExtensionPay and Stripe; we receive only the confirmation that you paid. We do not receive your card details.
@@ -20,10 +20,10 @@ The following live in `chrome.storage.local` (your browser, this device):
 
 | Data | Why it exists |
 |---|---|
-| LLM provider, model, API key, optional base URL, optional custom grouping rules | Required to run triages |
+| AI provider, model, API key, optional base URL, optional custom grouping rules | Required to run triages |
 | Notion integration token + parent page URL or ID (only if you set them up) | Required for "Send to Notion" |
 | Saved sessions (titles, URLs, group labels, summaries, optional notes) | The session list you can restore from |
-| Most recent triage cache (groups + tab titles/URLs + timestamp) | Powers the new-tab dashboard without re-querying the LLM |
+| Most recent triage cache (groups + tab titles/URLs + timestamp) | Powers the new-tab dashboard without calling the AI provider again |
 | Settings: auto-triage thresholds, badge config, sleep config, sync toggle | Your preferences |
 | Free-tier quota counter (current week's triage count) | Enforces the 5-triages-per-week free limit |
 
@@ -31,7 +31,7 @@ You can clear all of this by uninstalling the extension or by clicking "Clear al
 
 ## What leaves your device, when, and to whom
 
-### LLM provider (Anthropic, OpenAI / OpenAI-compatible, Google)
+### AI provider (Anthropic, OpenAI / OpenAI-compatible, Google)
 
 Triggered by: clicking "Triage tabs," clicking "Triage now," or auto-triage firing in the background while enabled.
 

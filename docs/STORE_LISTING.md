@@ -13,15 +13,15 @@ Tab Triage AI
 ## Summary / short description (132 chars max — appears in search results)
 
 ```
-Cluster open tabs by intent, summarize each cluster, and clean up stale & duplicate tabs. Bring your own Claude, GPT, or Gemini key.
+Group open tabs by intent, summarize each group, and clean up stale and duplicate tabs. Bring your own AI provider key.
 ```
-*(128 chars)*
+*(119 chars)*
 
 Alternates if the AI-provider angle feels too technical for search:
 ```
-AI tab manager that clusters your tabs by intent, summarizes each group, and cleans up stale and duplicate tabs.
+AI tab manager that groups your tabs by intent, summarizes each group, and cleans up stale and duplicate tabs.
 ```
-*(115 chars)*
+*(110 chars)*
 
 ```
 Group, summarize, and clean up your tabs with AI. Works with Claude, GPT, or Gemini using your own API key.
@@ -31,25 +31,25 @@ Group, summarize, and clean up your tabs with AI. Works with Claude, GPT, or Gem
 ## Detailed description
 
 ```
-Tab Triage AI groups your open tabs by what you're actually doing — research, buying decisions, rabbit holes — and writes a 3-bullet summary for each cluster so you can resume a project without re-opening 40 tabs to remember what's there.
+Tab Triage AI groups your open tabs by what you're actually doing — research, buying decisions, rabbit holes — and writes a 3-bullet summary for each group so you can resume a project without re-opening 40 tabs to remember what's there.
 
-Bring your own LLM key. The extension works with:
+Bring your own AI provider key. The extension works with:
 • Anthropic (Claude)
 • OpenAI (GPT) and any OpenAI-compatible endpoint — OpenRouter, Groq, Together, Fireworks, Ollama, LM Studio, vLLM
 • Google (Gemini)
 
-Pick a provider in Settings, paste your key, and you're done. Your key stays on your device. There's no proxy, no analytics, no third-party server in the middle — the extension calls the provider's API directly from your browser.
+Pick an AI provider in Settings, paste your key, and you're done. Your key stays on your device. There's no proxy, no analytics, no third-party server in the middle — the extension calls the AI provider's API directly from your browser.
 
-Don't want to pay any provider? Sign up for OpenRouter (free, no card), grab a key, point the extension at https://openrouter.ai/api/v1, and pick any model with the :free suffix. Step-by-step is in Settings.
+Don't want to pay for AI calls? Sign up for OpenRouter (free, no card), grab a key, point the extension at https://openrouter.ai/api/v1, and pick any model with the :free suffix. Step-by-step is in Settings.
 
 WHAT IT DOES
 
-• Clusters by intent, not topic. "Refactor billing," "Laptop buying," "Hacker News dive" — distinctive labels that stay readable when Chrome collapses tab groups in the strip.
+• Groups by intent, not topic. "Refactor billing," "Laptop buying," "Hacker News dive" — distinctive labels that stay readable when Chrome collapses tab groups in the strip.
 • Three-bullet summary per group: what you're doing, the key sources, a next step.
-• Applies clusters as native Chrome tab groups with rotating colors in one click.
+• Applies groups as native Chrome tab groups with rotating colors in one click.
 • Auto-triages new tabs in the background with debounce/throttle so it doesn't spam your API quota. Tunable; off by default.
 • Archives a group as a saved session: closes the tabs, keeps the work. Restore later into a new window or the current one.
-• Stale-tabs dashboard on the new tab page: tabs you haven't touched in 24h+ (configurable). Bulk archive or close. Optional auto-sleep frees memory via chrome.tabs.discard.
+• Stale-tabs dashboard on the new tab page: tabs you haven't used in 24h+ (configurable). Bulk archive or close. Optional auto-sleep frees memory via chrome.tabs.discard.
 • Duplicate-tab cleanup: finds open tabs sharing a URL, keeps the most recently used copy, closes the rest in one click.
 • Global fuzzy search (Cmd/Ctrl-Shift-K) across every open tab in every window AND your saved sessions.
 • Custom grouping rules. A free-form Settings textarea lets you teach the AI your conventions ("Always separate work email from personal," "Group dev docs under one Docs label").
@@ -66,7 +66,7 @@ PRIVACY
 
 • No analytics, no telemetry, no error reporting.
 • No proxy. Your tab titles and URLs go from your browser straight to the API host you chose — we never see them.
-• Your LLM key, your Notion token, your saved sessions: all in chrome.storage.local on your device.
+• Your AI provider key, your Notion token, your saved sessions: all in chrome.storage.local on your device.
 
 KEYBOARD SHORTCUTS
 
@@ -92,7 +92,7 @@ English
 ## Single-purpose description (required at submission)
 
 ```
-Tab Triage AI clusters a user's open browser tabs into groups by intent, generates a short summary for each group using a large language model the user supplies the key for, and helps the user clean up stale and duplicate tabs. All AI calls go directly from the user's browser to the provider they selected; the extension does not operate any backend.
+Tab Triage AI groups a user's open browser tabs by intent, generates a short summary for each group using an AI provider the user supplies the key for, and helps the user clean up stale and duplicate tabs. All AI calls go directly from the user's browser to the provider they selected; the extension does not operate any backend.
 ```
 
 ---
@@ -104,7 +104,7 @@ Chrome's submission form asks you to justify each permission individually. Paste
 ### `tabs`
 
 ```
-Reads tab titles, URLs, and lastAccessed timestamps so the AI can cluster them, the dashboard can surface stale or duplicate tabs, and the user can switch to a tab via search. Closes tabs only when the user explicitly clicks Archive, Close all, or the per-tab × button.
+Reads tab titles, URLs, and lastAccessed timestamps so the AI can group them, the dashboard can surface stale or duplicate tabs, and the user can switch to a tab via search. Closes tabs only when the user explicitly clicks Archive, Close all, or the per-tab × button.
 ```
 
 ### `tabGroups`
@@ -116,7 +116,7 @@ Creates and updates native Chrome tab groups with the AI-generated labels and ro
 ### `storage`
 
 ```
-Stores the user's LLM provider configuration, API key, saved sessions, settings, and the cache of the most recent triage so the new-tab dashboard can render without making another API call. Also stores the per-week free-tier quota counter.
+Stores the user's AI provider configuration, API key, saved sessions, settings, and the cache of the most recent triage so the new-tab dashboard can render without making another API call. Also stores the per-week free-tier quota counter.
 ```
 
 ### `windows`
@@ -140,7 +140,7 @@ Shows a system notification after a background auto-triage run summarizing how m
 ### Host permissions (combined justification)
 
 ```
-Each host the extension contacts is an LLM provider API that the user explicitly chose in Settings (Anthropic, OpenAI, Google Gemini, OpenRouter, Groq, Together, Fireworks), localhost/127.0.0.1 for users running local models (Ollama, LM Studio, vLLM), Notion's API for the optional Send-to-Notion feature, or ExtensionPay for license verification. All calls are made directly from the user's browser to the chosen host; the extension does not proxy through any server we operate.
+Each host the extension contacts is an AI provider API that the user explicitly chose in Settings (Anthropic, OpenAI, Google Gemini, OpenRouter, Groq, Together, Fireworks), localhost/127.0.0.1 for users running local models (Ollama, LM Studio, vLLM), Notion's API for the optional Send-to-Notion feature, or ExtensionPay for license verification. All calls are made directly from the user's browser to the chosen host; the extension does not proxy through any server we operate.
 ```
 
 ### Remote code use
@@ -158,10 +158,10 @@ When the form asks about each data type, the honest answers are:
 | Personally identifiable information | No | — | No |
 | Health information | No | — | No |
 | Financial / payment info | Only if user buys lifetime; handled by Stripe via ExtensionPay; we never see card details | Stripe (via ExtensionPay) | No |
-| Authentication info (API keys) | Stored locally on user's device only; sent in API calls to the user-chosen provider | The LLM provider the user picked | No |
+| Authentication info (API keys) | Stored locally on user's device only; sent in API calls to the user-chosen provider | The AI provider the user picked | No |
 | Personal communications | No | — | No |
 | Location | No | — | No |
-| Web history | Tab titles and URLs are sent to the LLM provider only when the user triggers a triage | The LLM provider the user picked | No |
+| Web history | Tab titles and URLs are sent to the AI provider only when the user triggers a triage | The AI provider the user picked | No |
 | User activity | No | — | No |
 | Website content | No (we never read page text — only tab titles and URLs) | — | No |
 
@@ -183,7 +183,7 @@ When the form asks about each data type, the honest answers are:
 | Screenshot 2 | required | The new-tab dashboard: stats row at top, latest-triage card, stale-tabs section visible |
 | Screenshot 3 | required | The new-tab duplicates section with a "Close all duplicates · 5" button |
 | Screenshot 4 | required | Chrome's tab strip after "Organize window" — colored tab groups with distinct labels |
-| Screenshot 5 (optional) | recommended | Settings page showing the multi-provider picker — proves the BYOK story |
+| Screenshot 5 (optional) | recommended | Settings page showing the AI-provider picker — proves the BYOK story |
 
 Shot list for screenshots:
 1. **Have 12–20 real-looking tabs open** before capture. Mix work, shopping, articles, docs.

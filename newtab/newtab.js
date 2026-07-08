@@ -265,7 +265,7 @@ async function renderStale() {
     .sort((a, b) => (a.lastAccessed ?? 0) - (b.lastAccessed ?? 0));
 
   state.staleTabs = stale;
-  els.staleHelp.textContent = `Tabs you haven't activated in ${formatThresholdLabel(hours)}. Pinned tabs are excluded.`;
+  els.staleHelp.textContent = `Tabs you haven't used in ${formatThresholdLabel(hours)}. Pinned tabs are excluded.`;
   els.staleCount.textContent = stale.length === 0 ? "" : `${stale.length} tab${stale.length === 1 ? "" : "s"}`;
 
   if (!stale.length) {
@@ -335,7 +335,7 @@ async function onArchiveAllStale() {
         label: `Stale tabs (${label})`,
         emoji: "",
         summary: [
-          `${stale.length} tab${stale.length === 1 ? "" : "s"} not activated in ${label}`,
+          `${stale.length} stale tab${stale.length === 1 ? "" : "s"} (${label})`,
           "Captured from the new-tab dashboard",
           "Restore via Saved sessions to revisit",
         ],
@@ -779,15 +779,15 @@ function formatApplyStatus(summary, cap) {
   const scopedCount = cap?.applied
     ? `${summary.groupedTabCount} of ${cap.originalCount}`
     : String(summary.groupedTabCount);
-  const clusterWord = summary.groupedGroupCount === 1 ? "cluster" : "clusters";
+  const groupWord = summary.groupedGroupCount === 1 ? "group" : "groups";
   if (summary.failedGroupCount) {
     const successPrefix = summary.groupedGroupCount
-      ? `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${clusterWord}. `
+      ? `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${groupWord}. `
       : "No tab groups were applied. ";
     return `${successPrefix}${formatApplyFailureMessage(summary)}`;
   }
   if (!summary.groupedGroupCount) return "Triage finished, but no tab groups were applied.";
-  return `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${clusterWord}.`;
+  return `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${groupWord}.`;
 }
 
 // Wrap an async action with a button's inline "Sending… / Sent / Failed"
