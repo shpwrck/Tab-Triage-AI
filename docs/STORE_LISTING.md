@@ -60,7 +60,7 @@ PRICING
 
 Free forever: 5 triages per week, 10 tabs per triage. Everything else is unlocked.
 
-Lifetime: $9.99 one-time. Unlimited triages, no tab cap, Notion export, deep mode. No subscription, no renewals.
+Lifetime: $9.99 one-time. Unlimited triages, no tab cap, dark mode, custom stale intervals, settings backup, and Notion export. No subscription, no renewals.
 
 PRIVACY
 
