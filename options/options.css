@@ -12,6 +12,7 @@
   --accent-2: #0d9488;
   --accent-2-strong: #0f766e;
   --accent-2-soft: #ccfbf1;
+  --focus-ring: #0f766e;
   --ok: #16a34a;
   --warn: #d97706;
   --danger: #dc2626;
@@ -33,6 +34,7 @@ body.dark {
   --accent-2: #5eead4;
   --accent-2-strong: #2dd4bf;
   --accent-2-soft: rgba(94, 234, 212, 0.22);
+  --focus-ring: #5eead4;
   --ok: #4ade80;
   --warn: #fbbf24;
   --danger: #f87171;
@@ -53,6 +55,7 @@ body.dark {
     --accent-2: #5eead4;
     --accent-2-strong: #2dd4bf;
     --accent-2-soft: #122e2b;
+    --focus-ring: #5eead4;
     --ok: #4ade80;
     --warn: #fbbf24;
     --danger: #f87171;
@@ -191,7 +194,7 @@ input[type="checkbox"] {
 }
 input[type="checkbox"]:hover { border-color: var(--accent); }
 input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--accent-soft);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 input[type="checkbox"]:checked {
@@ -314,3 +317,25 @@ code {
 }
 .disclosure[open] > summary::before { transform: rotate(90deg); }
 .disclosure > *:not(summary) { margin-top: 8px; }
+
+button:focus-visible,
+a:focus-visible,
+textarea:focus-visible,
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+input[type="checkbox"]:focus-visible,
+.field select:focus-visible,
+.disclosure > summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

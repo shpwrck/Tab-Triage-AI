@@ -12,6 +12,7 @@
   --accent-2: #0d9488;
   --accent-2-strong: #0f766e;
   --accent-2-soft: #ccfbf1;
+  --focus-ring: #0f766e;
   --ok: #16a34a;
   --warn: #d97706;
   --danger: #dc2626;
@@ -35,6 +36,7 @@ body.dark {
   --accent-2: #5eead4;
   --accent-2-strong: #2dd4bf;
   --accent-2-soft: rgba(94, 234, 212, 0.22);
+  --focus-ring: #5eead4;
   --ok: #4ade80;
   --warn: #fbbf24;
   --danger: #f87171;
@@ -57,6 +59,7 @@ body.dark {
     --accent-2: #5eead4;
     --accent-2-strong: #2dd4bf;
     --accent-2-soft: #122e2b;
+    --focus-ring: #5eead4;
     --ok: #4ade80;
     --warn: #fbbf24;
     --danger: #f87171;
@@ -375,7 +378,9 @@ button.danger-subtle:hover { background: var(--danger-soft); }
   opacity: 0.4;
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
-.group-tabs li:hover .tab-close { opacity: 1; }
+.group-tabs li:hover .tab-close,
+.group-tabs li:focus-within .tab-close,
+.tab-close:focus-visible { opacity: 1; }
 .tab-close:hover { background: var(--danger-soft); color: var(--danger); opacity: 1; }
 
 .group-actions {
@@ -439,7 +444,8 @@ button.danger-subtle:hover { background: var(--danger-soft); }
   opacity: 0.5;
   flex-shrink: 0;
 }
-.stale-list li:hover .tab-close { opacity: 1; }
+.stale-list li:hover .tab-close,
+.stale-list li:focus-within .tab-close { opacity: 1; }
 
 .stale-footer {
   display: flex;
@@ -554,6 +560,26 @@ button.danger-subtle:hover { background: var(--danger-soft); }
 }
 .session-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .session-actions button { padding: 5px 12px; font-size: 12px; }
+
+button:focus-visible,
+a:focus-visible,
+textarea:focus-visible,
+.session-notes:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 @media (max-width: 640px) {
   .plan-strip {
