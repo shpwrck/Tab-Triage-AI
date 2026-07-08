@@ -1,7 +1,14 @@
 import { getSettings, listSessions, deleteSession, saveSession, updateSession } from "../lib/storage.js";
 import { readTriageCache, saveTriageCache, clearTriageCache } from "../lib/triage_cache.js";
 import { LLMError } from "../lib/llm/index.js";
-import { applyAllAsTabGroups, formatApplyFailureMessage, restoreSession, summarizeApplyResults } from "../lib/actions.js";
+import {
+  applyAllAsTabGroups,
+  findLiveTabsForUrls,
+  focusOrOpenTabByUrl,
+  formatApplyFailureMessage,
+  restoreSession,
+  summarizeApplyResults,
+} from "../lib/actions.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
 import { setTriageRunning, formatThresholdLabel } from "../lib/badge.js";
 import { applyStoredTheme, watchThemeChanges } from "../lib/theme.js";
@@ -481,7 +488,7 @@ function buildGroupNode(g, idx) {
       t => `
       <li data-url="${escapeAttr(t.url)}">
         <img class="favicon" src="${escapeAttr(t.favIconUrl || "")}" />
-        <a href="${escapeAttr(t.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(t.title)}">${escape(t.title)}</a>
+        <a href="${escapeAttr(t.url)}" target="_blank" rel="noopener noreferrer" data-action="open-tab" data-tab-url="${escapeAttr(t.url)}" title="${escapeAttr(t.title)}">${escape(t.title)}</a>
         <button class="tab-close" data-action="close-tab" data-tab-url="${escapeAttr(t.url)}" title="Close this tab">×</button>
       </li>
     `,
@@ -511,26 +518,21 @@ function buildGroupNode(g, idx) {
     });
   });
 
+  article.querySelectorAll("a[data-action='open-tab']").forEach(link => {
+    link.addEventListener("click", onLatestTabLinkClick);
+  });
+
   return article;
 }
 
-// Resolve the cached group's URL list back to live Chrome tabs. The cache
-// only stores titles/URLs — IDs would be stale across reloads — so we
-// look the tabs up by URL each time we want to act on them.
-async function findLiveTabsForUrls(urls) {
-  if (!urls?.length) return [];
-  const wanted = new Set(urls);
-  const all = await chrome.tabs.query({});
-  const byUrl = new Map();
-  for (const t of all) {
-    if (wanted.has(t.url) && !byUrl.has(t.url)) byUrl.set(t.url, t);
-  }
-  // Preserve the original group order so e.g. New window opens the first
-  // tab as the focused one.
-  return urls
-    .map(u => byUrl.get(u))
-    .filter(Boolean)
-    .map(t => ({ id: t.id, title: t.title, url: t.url, favIconUrl: t.favIconUrl }));
+function onLatestTabLinkClick(e) {
+  const url = e.currentTarget?.dataset?.tabUrl || e.currentTarget?.href;
+  if (!url) return;
+  e.preventDefault();
+  e.stopPropagation();
+  focusOrOpenTabByUrl(url).catch(err => {
+    setHeroStatus(`Open failed: ${err.message ?? err}`, "err");
+  });
 }
 
 async function onGroupAction(idx, action, tabUrlAttr) {
