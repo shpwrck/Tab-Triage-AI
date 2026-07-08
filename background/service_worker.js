@@ -9,6 +9,7 @@ import { installBadge, updateBadge, applyTriageRunning } from "../lib/badge.js";
 import { installSleepStale } from "../lib/sleep_stale.js";
 import { installSessionSync } from "../lib/session_sync.js";
 import { runManualTriage } from "../lib/manual_triage.js";
+import { readPopupTriageState, startPopupTriage } from "../lib/popup_triage.js";
 
 if (billingEnabled()) {
   getExtPay().startBackground();
@@ -81,6 +82,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "tt-set-triage-running") {
     applyTriageRunning(!!msg.running).then(
       () => sendResponse({ ok: true }),
+      err => sendResponse({ ok: false, error: String(err?.message ?? err) }),
+    );
+    return true;
+  }
+  if (msg?.type === "tt-popup-triage-start") {
+    startPopupTriage({ tabs: msg.tabs, windowId: msg.windowId }).then(
+      state => sendResponse({ ok: true, state }),
+      err => sendResponse({ ok: false, error: String(err?.message ?? err) }),
+    );
+    return true;
+  }
+  if (msg?.type === "tt-popup-triage-state") {
+    readPopupTriageState().then(
+      state => sendResponse({ ok: true, state }),
       err => sendResponse({ ok: false, error: String(err?.message ?? err) }),
     );
     return true;
