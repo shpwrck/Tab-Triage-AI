@@ -16,6 +16,13 @@ import { runQuotaLimitedTriage, TriageQuotaError } from "../lib/triage_quota.js"
 import { getStaleTabs, isTriageEligibleTab, splitStaleBulkActionTabs, staleThresholdMs } from "../lib/tab_policy.js";
 import { refreshPlan, openCheckout } from "../lib/billing.js";
 import { getPlanQuotaSummary, formatLifetimePrice } from "../lib/plan_quota.js";
+import {
+  BACKGROUND_FEATURES,
+  BACKGROUND_STATUS_KEY,
+  STATUS_LEVELS,
+  formatBackgroundStatusMessage,
+  readBackgroundStatus,
+} from "../lib/background_status.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -47,6 +54,9 @@ const els = {
   planSettings: $("#plan-settings"),
   setupCard: $("#setup-card"),
   setupOpenSettings: $("#setup-open-settings"),
+  backgroundStatusCard: $("#background-status-card"),
+  backgroundStatusMeta: $("#background-status-meta"),
+  backgroundStatusList: $("#background-status-list"),
   heroStatus: $("#hero-status"),
   latestMeta: $("#latest-meta"),
   latestBody: $("#latest-body"),
@@ -111,6 +121,7 @@ async function init() {
   await Promise.all([
     renderSetupState(),
     renderBillingState(),
+    renderBackgroundStatus(),
     renderStats(),
     renderLatest(),
     renderStale(),
@@ -127,7 +138,9 @@ async function init() {
     if (changes.tt_settings) {
       renderSetupState().catch(() => {});
       renderBillingState().catch(() => {});
+      renderBackgroundStatus().catch(() => {});
     }
+    if (changes[BACKGROUND_STATUS_KEY]) renderBackgroundStatus().catch(() => {});
     if (changes.tt_quota) renderBillingState().catch(() => {});
     if (changes.tt_last_triage) renderLatest().catch(() => {});
     if (changes.tt_sessions && !isOwnNoteAutosaveChange(changes.tt_sessions)) {
@@ -213,6 +226,46 @@ async function onUpgradeLifetime() {
     els.upgradeLifetime.textContent = originalText;
     els.upgradeLifetime.title = originalTitle;
   }
+}
+
+async function renderBackgroundStatus() {
+  const [settings, statuses] = await Promise.all([getSettings(), readBackgroundStatus()]);
+  const rows = [];
+  if (settings.autoTriage?.enabled && statuses[BACKGROUND_FEATURES.AUTO_TRIAGE]) {
+    rows.push(["Auto-triage", statuses[BACKGROUND_FEATURES.AUTO_TRIAGE]]);
+  }
+  if (settings.sync?.enabled && statuses[BACKGROUND_FEATURES.SESSION_SYNC]) {
+    rows.push(["Sync", statuses[BACKGROUND_FEATURES.SESSION_SYNC]]);
+  }
+
+  if (!rows.length) {
+    els.backgroundStatusCard.classList.add("hidden");
+    els.backgroundStatusList.innerHTML = "";
+    els.backgroundStatusMeta.textContent = "";
+    return;
+  }
+
+  els.backgroundStatusCard.classList.remove("hidden");
+  els.backgroundStatusMeta.textContent = `${rows.length} issue${rows.length === 1 ? "" : "s"}`;
+  els.backgroundStatusList.innerHTML = rows.map(([label, status]) => `
+    <li class="background-status-item ${backgroundStatusClass(status)}" title="${escapeAttr(status.details || "")}">
+      <div class="background-status-title">${escape(label)}</div>
+      <div class="background-status-message">${escape(formatBackgroundStatusForCard(status))}</div>
+    </li>
+  `).join("");
+}
+
+function formatBackgroundStatusForCard(status) {
+  const base = formatBackgroundStatusMessage(status);
+  const seen = status.occurrenceCount > 1 ? `Seen ${status.occurrenceCount} times.` : "";
+  const lastSeen = status.updatedAt ? `Last seen ${humanAgo(Date.now() - status.updatedAt)} ago.` : "";
+  return [base, seen, lastSeen].filter(Boolean).join(" ");
+}
+
+function backgroundStatusClass(status) {
+  if (status.level === STATUS_LEVELS.ERROR) return "err";
+  if (status.level === STATUS_LEVELS.WARNING) return "warn";
+  return "";
 }
 
 function debounce(fn, ms) {

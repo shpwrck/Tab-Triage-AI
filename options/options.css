@@ -242,6 +242,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .actions { display: flex; align-items: center; gap: 8px; }
 .status { font-size: 12px; color: var(--muted); }
 .status.ok { color: var(--ok); }
+.status.warn { color: var(--warn); }
 .status.err { color: var(--danger); }
 .hidden { display: none !important; }
 
