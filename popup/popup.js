@@ -1,4 +1,3 @@
-import { LLMError } from "../lib/llm/index.js";
 import {
   getSettings,
   checkQuota,
@@ -6,7 +5,6 @@ import {
   saveSession,
   deleteSession,
 } from "../lib/storage.js";
-import { runQuotaLimitedTriage, TriageQuotaError } from "../lib/triage_quota.js";
 import { refreshPlan, openCheckout, billingEnabled } from "../lib/billing.js";
 import {
   archiveGroup,
@@ -17,10 +15,10 @@ import {
   closeOneTab,
   restoreSession,
 } from "../lib/actions.js";
-import { saveTriageCache } from "../lib/triage_cache.js";
+import { POPUP_TRIAGE_STATE_KEY, readPopupTriageState } from "../lib/popup_triage.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
 import { fuzzyScoreMulti } from "../lib/fuzzy.js";
-import { setTriageRunning, formatThresholdLabel } from "../lib/badge.js";
+import { formatThresholdLabel } from "../lib/badge.js";
 import { applyStoredTheme, watchThemeChanges } from "../lib/theme.js";
 
 const $ = sel => document.querySelector(sel);
@@ -114,6 +112,7 @@ async function init() {
 
   await loadCurrentWindowTabs();
   await Promise.all([renderStaleTabs(), renderDupeTabs()]).catch(() => {});
+  await syncPopupTriageState();
 }
 
 async function loadCurrentWindowTabs() {
@@ -235,45 +234,112 @@ async function onTriage() {
   }
 
   setBusy(true);
-  await setTriageRunning(true).catch(() => {});
   try {
-    await runQuotaLimitedTriage({
-      settings,
+    const win = await chrome.windows.getCurrent().catch(() => null);
+    const response = await chrome.runtime.sendMessage({
+      type: "tt-popup-triage-start",
+      windowId: selected[0]?.windowId ?? win?.id ?? null,
       tabs: selected,
-      onPreflight: ({ cap }) => {
-        if (cap.applied) showError(cap.message);
-      },
-      afterTriage: async ({ rawGroups, tabs: toSend }) => {
-        const tabsById = indexBy(toSend, "id");
-        state.lastResult = {
-          groups: rawGroups.map(g => ({
-            label: g.label,
-            emoji: g.emoji,
-            summary: g.summary,
-            tabs: (g.tab_ids ?? [])
-              .map(id => tabsById.get(id))
-              .filter(Boolean)
-              .map(t => ({ id: t.id, windowId: t.windowId, title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
-            status: null,
-          })),
-        };
-        const win = await chrome.windows.getCurrent().catch(() => null);
-        await saveTriageCache({
-          windowId: win?.id ?? null,
-          groups: state.lastResult.groups,
-        }).catch(() => {});
-      },
     });
+    if (!response?.ok) throw new Error(response?.error || "Could not start triage.");
+    const nextState = response.state?.status === "running"
+      ? await waitForPopupTriageCompletion(response.state.jobId)
+      : response.state;
     await refreshQuotaBadge();
-    showResult();
+    await applyPopupTriageState(nextState);
   } catch (e) {
-    showError(e instanceof LLMError || e instanceof TriageQuotaError
-      ? e.message
-      : `Unexpected error: ${e.message ?? e}`);
+    showError(e?.message ?? String(e));
   } finally {
-    await setTriageRunning(false).catch(() => {});
     setBusy(false);
   }
+}
+
+async function syncPopupTriageState() {
+  const persistedState = await readPopupTriageState();
+  if (!persistedState) return;
+
+  const win = await chrome.windows.getCurrent().catch(() => null);
+  const currentWindowId = state.tabs.find(t => typeof t.windowId === "number")?.windowId ?? win?.id;
+  if (
+    typeof persistedState.windowId === "number"
+    && typeof currentWindowId === "number"
+    && persistedState.windowId !== currentWindowId
+  ) {
+    return;
+  }
+
+  await applyPopupTriageState(persistedState);
+  if (persistedState.status === "running") {
+    waitForPopupTriageCompletion(persistedState.jobId)
+      .then(applyPopupTriageState)
+      .catch(e => showError(e?.message ?? String(e)));
+  }
+}
+
+async function applyPopupTriageState(nextState) {
+  if (!nextState) return;
+  if (nextState.status === "running") {
+    setBusy(true);
+    showError("Triage is still running. You can close this popup.");
+    return;
+  }
+
+  setBusy(false);
+  if (nextState.status === "success") {
+    state.lastResult = { groups: nextState.groups ?? [] };
+    if (nextState.notice) showError(nextState.notice);
+    else hideError();
+    showResult();
+    await refreshQuotaBadge();
+    return;
+  }
+
+  if (nextState.status === "error") {
+    showPicker();
+    showError(nextState.error || "Triage failed.");
+  }
+}
+
+function waitForPopupTriageCompletion(jobId) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    let interval = null;
+    const timeout = setTimeout(() => {
+      finish();
+      reject(new Error("Triage is still running. Reopen the popup to check the result."));
+    }, 10 * 60_000);
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+      chrome.storage.onChanged.removeListener(onChanged);
+    };
+    const settleIfReady = nextState => {
+      if (!nextState || nextState.jobId !== jobId || nextState.status === "running") return;
+      finish();
+      resolve(nextState);
+    };
+    const onChanged = (changes, area) => {
+      if (area !== "local") return;
+      settleIfReady(changes[POPUP_TRIAGE_STATE_KEY]?.newValue);
+    };
+
+    chrome.storage.onChanged.addListener(onChanged);
+    interval = setInterval(async () => {
+      try {
+        settleIfReady(await readPopupTriageState());
+      } catch (e) {
+        finish();
+        reject(e);
+      }
+    }, 1000);
+    readPopupTriageState().then(settleIfReady, e => {
+      finish();
+      reject(e);
+    });
+  });
 }
 
 function showResult() {
@@ -1030,12 +1096,6 @@ async function onCloseAllDupes() {
   } catch (e) {
     showError(`Couldn't close duplicates: ${e.message ?? e}`);
   }
-}
-
-function indexBy(arr, key) {
-  const m = new Map();
-  for (const x of arr) m.set(x[key], x);
-  return m;
 }
 
 function safeHost(url) {
