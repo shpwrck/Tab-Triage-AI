@@ -27,7 +27,7 @@
         <button id="setup-cta" class="primary">Open Settings</button>
       </section>
 
-      <div id="status-notice" class="notice hidden"></div>
+      <div id="status-notice" class="notice hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
       <section id="picker">
         <div class="picker-head">
@@ -77,7 +77,7 @@
             <button id="back" class="ghost">← Back</button>
           </div>
         </div>
-        <div id="result-notice" class="notice hidden"></div>
+        <div id="result-notice" class="notice hidden" role="status" aria-live="polite" aria-atomic="true"></div>
         <div id="groups"></div>
       </section>
 
@@ -97,7 +97,9 @@
         <ul id="session-list" class="session-list"></ul>
       </section>
 
-      <div id="error" class="error hidden"></div>
+      <div id="error" class="error hidden" role="alert" aria-live="assertive" aria-atomic="true"></div>
+      <div id="sr-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div id="sr-alert" class="sr-only" role="alert" aria-live="assertive" aria-atomic="true"></div>
     </main>
 
     <footer>

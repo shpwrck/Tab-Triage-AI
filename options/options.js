@@ -95,6 +95,28 @@ const els = {
 const providerDrafts = {};
 let activeLlmProvider = "";
 
+function setStatusElement(el, msg, cls = "", details = "") {
+  if (!el) return;
+  el.textContent = msg;
+  el.title = details;
+  el.className = `status ${cls}`;
+  setLiveStatusMode(el, cls);
+}
+
+function setStatusHtml(el, html, cls = "", details = "") {
+  if (!el) return;
+  el.innerHTML = html;
+  el.title = details;
+  el.className = cls || "muted";
+  setLiveStatusMode(el, cls);
+}
+
+function setLiveStatusMode(el, cls = "") {
+  el.setAttribute("role", cls === "err" ? "alert" : "status");
+  el.setAttribute("aria-live", cls === "err" ? "assertive" : "polite");
+  el.setAttribute("aria-atomic", "true");
+}
+
 async function init() {
   await applyStoredTheme();
   watchThemeChanges();
@@ -234,10 +256,11 @@ async function initNewTab(settings) {
   els.newtabEnabled.addEventListener("change", async () => {
     const enabled = els.newtabEnabled.checked;
     await saveSettings({ newtab: { enabled } });
-    els.newtabStatus.textContent = enabled
-      ? "New-tab dashboard enabled."
-      : "New tabs will open as blank pages.";
-    els.newtabStatus.className = "status ok";
+    setStatusElement(
+      els.newtabStatus,
+      enabled ? "New-tab dashboard enabled." : "New tabs will open as blank pages.",
+      "ok",
+    );
   });
 }
 
@@ -340,8 +363,7 @@ function setNotionParentHint(parentPageId) {
 }
 
 function setNotionStatus(msg, cls) {
-  els.notionStatus.textContent = msg;
-  els.notionStatus.className = `status ${cls}`;
+  setStatusElement(els.notionStatus, msg, cls);
 }
 
 async function initSync(settings) {
@@ -350,25 +372,21 @@ async function initSync(settings) {
   els.syncEnabled.addEventListener("change", async () => {
     const enabled = els.syncEnabled.checked;
     await saveSettings({ sync: { enabled } });
-    els.syncStatus.textContent = enabled ? "Syncing…" : "Sync disabled. Sync silo cleared.";
-    els.syncStatus.className = "status";
+    setStatusElement(els.syncStatus, enabled ? "Syncing…" : "Sync disabled. Sync silo cleared.");
     try {
       await onSyncEnabledChange(enabled);
       if (enabled) {
         const hasStatus = await refreshSyncStatus({ enabled: true });
         if (!hasStatus) {
-          els.syncStatus.textContent = "Sync enabled. Saved sessions will appear on other Chromes signed in to this account.";
-          els.syncStatus.className = "status ok";
+          setStatusElement(els.syncStatus, "Sync enabled. Saved sessions will appear on other Chromes signed in to this account.", "ok");
         }
       } else {
-        els.syncStatus.textContent = "Sync disabled. Sessions stay local-only on this device.";
-        els.syncStatus.className = "status ok";
+        setStatusElement(els.syncStatus, "Sync disabled. Sessions stay local-only on this device.", "ok");
       }
     } catch (e) {
       const hasStatus = await refreshSyncStatus({ enabled: true });
       if (!hasStatus) {
-        els.syncStatus.textContent = `Sync error: ${e.message ?? e}`;
-        els.syncStatus.className = "status err";
+        setStatusElement(els.syncStatus, `Sync error: ${e.message ?? e}`, "err");
       }
     }
   });
@@ -376,21 +394,15 @@ async function initSync(settings) {
 
 async function refreshSyncStatus(sync) {
   if (!sync?.enabled) {
-    els.syncStatus.textContent = "";
-    els.syncStatus.title = "";
-    els.syncStatus.className = "status";
+    setStatusElement(els.syncStatus, "");
     return false;
   }
   const status = await getBackgroundFeatureStatus(BACKGROUND_FEATURES.SESSION_SYNC);
   if (!status) {
-    els.syncStatus.textContent = "";
-    els.syncStatus.title = "";
-    els.syncStatus.className = "status";
+    setStatusElement(els.syncStatus, "");
     return false;
   }
-  els.syncStatus.textContent = formatInlineBackgroundStatus(status);
-  els.syncStatus.title = status.details || "";
-  els.syncStatus.className = `status ${statusClass(status)}`;
+  setStatusElement(els.syncStatus, formatInlineBackgroundStatus(status), statusClass(status), status.details || "");
   return true;
 }
 
@@ -556,8 +568,7 @@ async function initBadge(settings) {
     if (els.badgeThreshold.value === "custom") {
       if (!isLifetime) {
         applyThresholdToUi(currentThresholdHours, false);
-        els.badgeStatus.textContent = "Custom intervals are a Lifetime feature.";
-        els.badgeStatus.className = "status err";
+        setStatusElement(els.badgeStatus, "Custom intervals are a Lifetime feature.", "err");
         return;
       }
       applyCustomThresholdToUi(currentThresholdHours, true);
@@ -572,8 +583,7 @@ async function initBadge(settings) {
   async function persistCustomThreshold() {
     const raw = Number(els.badgeThresholdCustomValue.value);
     if (!Number.isFinite(raw) || raw <= 0) {
-      els.badgeStatus.textContent = "Enter a positive number.";
-      els.badgeStatus.className = "status err";
+      setStatusElement(els.badgeStatus, "Enter a positive number.", "err");
       return;
     }
     const hours = unitToHours(raw, els.badgeThresholdCustomUnit.value);
@@ -614,13 +624,11 @@ function applyCustomThresholdToUi(hours, isLifetime) {
 async function refreshBadgeStatus() {
   try {
     const { count } = await updateBadge();
-    els.badgeStatus.textContent = count === 0
+    setStatusElement(els.badgeStatus, count === 0
       ? "Currently 0 stale tabs."
-      : `Currently ${count} stale tab${count === 1 ? "" : "s"}.`;
-    els.badgeStatus.className = "status ok";
+      : `Currently ${count} stale tab${count === 1 ? "" : "s"}.`, "ok");
   } catch (e) {
-    els.badgeStatus.textContent = `Could not read tabs: ${e.message ?? e}`;
-    els.badgeStatus.className = "status err";
+    setStatusElement(els.badgeStatus, `Could not read tabs: ${e.message ?? e}`, "err");
   }
 }
 
@@ -709,9 +717,7 @@ function humanAgo(ms) {
 }
 
 function setAutoStatus(msg, cls, details = "") {
-  els.autoStatus.textContent = msg;
-  els.autoStatus.title = details;
-  els.autoStatus.className = `status ${cls}`;
+  setStatusElement(els.autoStatus, msg, cls, details);
 }
 
 function watchBackgroundStatusChanges() {
@@ -750,7 +756,7 @@ async function renderPlan() {
   const price = lifetimePriceUsd();
 
   if (!billingEnabled()) {
-    els.planStatus.innerHTML = `You're on <strong>Free</strong>. Lifetime checkout isn't live yet — we're polishing it before launch.`;
+    setStatusHtml(els.planStatus, `You're on <strong>Free</strong>. Lifetime checkout isn't live yet — we're polishing it before launch.`);
     els.waitlistWrap.classList.remove("hidden");
     els.waitlistRow.classList.remove("hidden");
     return;
@@ -759,18 +765,18 @@ async function renderPlan() {
   const planRefresh = await refreshPlan();
   const { plan, verified } = planRefresh;
   if (plan === "lifetime") {
-    els.planStatus.innerHTML = verified
+    setStatusHtml(els.planStatus, verified
       ? `You own <strong>Lifetime</strong>. Thanks for supporting the project.`
-      : `You own <strong>Lifetime</strong>, saved on this browser. Paid status could not be refreshed.`;
+      : `You own <strong>Lifetime</strong>, saved on this browser. Paid status could not be refreshed.`);
     addAction("Restore on another browser", openLogin);
     els.waitlistWrap.classList.add("hidden");
     els.waitlistRow.classList.add("hidden");
     return;
   }
 
-  els.planStatus.innerHTML = verified
+  setStatusHtml(els.planStatus, verified
     ? `You're on <strong>Free</strong>.`
-    : `You're on <strong>Free</strong>. Paid status could not be refreshed.`;
+    : `You're on <strong>Free</strong>. Paid status could not be refreshed.`);
   addAction(`Buy lifetime access · $${price}`, () => openCheckout(), "primary");
   addAction("Already paid? Sign in", openLogin);
   els.waitlistWrap.classList.add("hidden");
@@ -854,19 +860,15 @@ async function onTest() {
 async function onWaitlist() {
   const email = els.waitlistEmail.value.trim();
   if (!/.+@.+\..+/.test(email)) {
-    els.waitlistStatus.textContent = "Enter a valid email.";
-    els.waitlistStatus.className = "status err";
+    setStatusElement(els.waitlistStatus, "Enter a valid email.", "err");
     return;
   }
   await chrome.storage.local.set({ tt_waitlist_email: email });
-  els.waitlistStatus.textContent = "Saved locally. Email jankoszy@gmail.com to lock in the launch discount.";
-  els.waitlistStatus.className = "status ok";
+  setStatusElement(els.waitlistStatus, "Saved locally. Email jankoszy@gmail.com to lock in the launch discount.", "ok");
 }
 
 function setStatus(msg, cls, details = "") {
-  els.status.textContent = msg;
-  els.status.title = details;
-  els.status.className = `status ${cls}`;
+  setStatusElement(els.status, msg, cls, details);
 }
 
 async function initDataSection() {
@@ -926,8 +928,11 @@ async function renderSessionLimitStatus() {
   } else {
     policyText = `When full, saving a new session keeps the newest ${state.limit} and deletes the oldest one first.`;
   }
-  els.sessionLimitStatus.textContent = `${countText} ${policyText}`;
-  els.sessionLimitStatus.className = `status ${state.count >= state.limit ? "warn" : ""}`;
+  setStatusElement(
+    els.sessionLimitStatus,
+    `${countText} ${policyText}`,
+    state.count >= state.limit ? "warn" : "",
+  );
 }
 
 async function onExport() {
@@ -1035,8 +1040,7 @@ async function confirmSessionImportCapacity(incomingSessions, importedSettings) 
 }
 
 function setDataStatus(msg, cls) {
-  els.dataStatus.textContent = msg;
-  els.dataStatus.className = `status ${cls}`;
+  setStatusElement(els.dataStatus, msg, cls);
 }
 
 init();

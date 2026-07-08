@@ -84,7 +84,45 @@ const els = {
   sessionList: $("#session-list"),
   sessionsCount: $("#sessions-count"),
   sessionsEmpty: $("#sessions-empty"),
+  srStatus: $("#sr-status"),
+  srAlert: $("#sr-alert"),
 };
+
+function announceStatus(msg) {
+  announceToLiveRegion(els.srStatus, msg);
+}
+
+function announceAlert(msg) {
+  announceToLiveRegion(els.srAlert, msg);
+}
+
+function announceToLiveRegion(region, msg) {
+  if (!region || !msg) return;
+  region.textContent = "";
+  requestAnimationFrame(() => {
+    region.textContent = msg;
+  });
+}
+
+function selectorAttr(value) {
+  return String(value ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function focusElement(el) {
+  if (!el || !el.isConnected || el.disabled || el.closest?.(".hidden")) return false;
+  const canFocus = el.matches?.("button, a[href], input, textarea, select, [tabindex]");
+  if (!canFocus && !el.hasAttribute("tabindex")) el.tabIndex = -1;
+  el.focus({ preventScroll: true });
+  return document.activeElement === el;
+}
+
+function focusFirstAvailable(selectors, root = document) {
+  for (const selector of selectors.filter(Boolean)) {
+    const el = root.querySelector(selector);
+    if (focusElement(el)) return true;
+  }
+  return false;
+}
 
 async function shouldShowNewTabDashboard() {
   try {
@@ -221,10 +259,12 @@ async function renderBillingState() {
 }
 
 async function onUpgradeLifetime() {
+  const hadFocus = document.activeElement === els.upgradeLifetime;
   const originalText = els.upgradeLifetime.textContent;
   const originalTitle = els.upgradeLifetime.title;
   els.upgradeLifetime.disabled = true;
   els.upgradeLifetime.textContent = "Opening checkout";
+  announceStatus("Opening checkout.");
   try {
     await openCheckout();
     await refreshBillingState({ verify: true });
@@ -234,6 +274,7 @@ async function onUpgradeLifetime() {
     els.upgradeLifetime.disabled = false;
     els.upgradeLifetime.textContent = originalText;
     els.upgradeLifetime.title = originalTitle;
+    if (hadFocus) focusElement(els.upgradeLifetime);
   }
 }
 
@@ -406,7 +447,33 @@ function computeDuplicates(tabs) {
   return { duplicates, totalRedundant };
 }
 
-async function renderDuplicates() {
+function captureDuplicateFocus() {
+  const active = document.activeElement;
+  if (active === els.closeAllDupes) return { type: "dupe-footer" };
+  if (!els.dupesList.contains(active)) return null;
+  const action = active?.dataset?.action || "";
+  return action ? { type: "dupe-row", action } : null;
+}
+
+function restoreDuplicateFocus(focus) {
+  if (!focus) return;
+  if (focus.type === "dupe-footer") {
+    focusFirstAvailable([
+      "#close-all-dupes:not(:disabled)",
+      "#dupes-list button[data-action='close-dupes']",
+      "#dupes-card",
+    ]);
+    return;
+  }
+  focusFirstAvailable([
+    `#dupes-list button[data-action="${selectorAttr(focus.action)}"]:not(:disabled)`,
+    "#dupes-list button[data-action='close-dupes']:not(:disabled)",
+    "#close-all-dupes:not(:disabled)",
+    "#dupes-card",
+  ]);
+}
+
+async function renderDuplicates({ focus = captureDuplicateFocus() } = {}) {
   const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
   const { duplicates, totalRedundant } = computeDuplicates(tabs);
 
@@ -418,6 +485,7 @@ async function renderDuplicates() {
     els.dupesList.innerHTML = "";
     els.dupesEmpty.classList.remove("hidden");
     els.dupesFooter.classList.add("hidden");
+    restoreDuplicateFocus(focus);
     return;
   }
   els.dupesEmpty.classList.add("hidden");
@@ -446,6 +514,7 @@ async function renderDuplicates() {
     els.dupesList.appendChild(li);
   }
   hideBrokenFavicons(els.dupesList);
+  restoreDuplicateFocus(focus);
 }
 
 async function loadStaleTabs() {
@@ -474,7 +543,35 @@ function setStaleBulkButtonState({ actionTabs, protectedTabs }) {
   els.archiveAllStale.textContent = hasProtected ? `Archive safe · ${count}` : `Archive all · ${count}`;
 }
 
-async function renderStale() {
+function captureStaleFocus() {
+  const active = document.activeElement;
+  if (active === els.closeAllStale || active === els.archiveAllStale) {
+    return { type: "stale-footer", id: active.id };
+  }
+  if (!els.staleList.contains(active)) return null;
+  if (active?.classList?.contains("tab-close")) return { type: "stale-row" };
+  return null;
+}
+
+function restoreStaleFocus(focus) {
+  if (!focus) return;
+  if (focus.type === "stale-footer") {
+    focusFirstAvailable([
+      `#${selectorAttr(focus.id)}:not(:disabled)`,
+      "#stale-list .tab-close",
+      "#stale-card",
+    ]);
+    return;
+  }
+  focusFirstAvailable([
+    "#stale-list .tab-close",
+    "#close-all-stale:not(:disabled)",
+    "#archive-all-stale:not(:disabled)",
+    "#stale-card",
+  ]);
+}
+
+async function renderStale({ focus = captureStaleFocus() } = {}) {
   const { staleTabs: stale, actionTabs, protectedTabs, hours, now } = await loadStaleTabs();
 
   state.staleTabs = stale;
@@ -485,6 +582,7 @@ async function renderStale() {
     els.staleList.innerHTML = "";
     els.staleEmpty.classList.remove("hidden");
     els.staleFooter.classList.add("hidden");
+    restoreStaleFocus(focus);
     return;
   }
   els.staleEmpty.classList.add("hidden");
@@ -507,7 +605,7 @@ async function renderStale() {
       try {
         await chrome.tabs.remove(t.id);
         setHeroStatus(`Closed "${t.title || t.url}".`, "ok");
-        await renderStale();
+        await renderStale({ focus: { type: "stale-row" } });
         await renderStats();
       } catch (e) {
         setHeroStatus(`Couldn't close: ${e.message ?? e}`, "err");
@@ -516,6 +614,7 @@ async function renderStale() {
     els.staleList.appendChild(li);
   }
   hideBrokenFavicons(els.staleList);
+  restoreStaleFocus(focus);
 }
 
 async function onCloseAllStale() {
@@ -546,7 +645,7 @@ async function onCloseAllStale() {
       await chrome.tabs.remove(actionTabs.map(t => t.id));
       setHeroStatus(`Closed ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"}. ${closeRecoveryMessage(recovery)}`, "ok");
     }, { sendingLabel: "Saving…", okLabel: "Recoverable" });
-    await renderStale();
+    await renderStale({ focus: { type: "stale-footer", id: "close-all-stale" } });
     await renderStats();
     await renderSessions();
   } catch (e) {
@@ -591,7 +690,7 @@ async function onArchiveAllStale() {
       `Archived ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"} — recoverable from Saved sessions.${note}`,
       limitNotice,
     ].filter(Boolean).join(" "), "ok");
-    await renderStale();
+    await renderStale({ focus: { type: "stale-footer", id: "archive-all-stale" } });
     await renderStats();
     await renderSessions();
   } catch (e) {
@@ -630,7 +729,7 @@ async function onDupeAction(action, dataset, btn) {
         await chrome.tabs.remove(ids);
         setHeroStatus(`Closed ${ids.length} duplicate${ids.length === 1 ? "" : "s"}. ${closeRecoveryMessage(recovery)}`, "ok");
       }, { sendingLabel: "Saving…", okLabel: "Recoverable" });
-      await renderDuplicates();
+      await renderDuplicates({ focus: { type: "dupe-row", action: "close-dupes" } });
       await renderStats();
       await renderSessions();
     } catch (e) {
@@ -655,7 +754,7 @@ async function onCloseAllDuplicates() {
       await chrome.tabs.remove(ids);
       setHeroStatus(`Closed ${ids.length} duplicate tab${ids.length === 1 ? "" : "s"}. ${closeRecoveryMessage(recovery)}`, "ok");
     }, { sendingLabel: "Saving…", okLabel: "Recoverable" });
-    await renderDuplicates();
+    await renderDuplicates({ focus: { type: "dupe-footer" } });
     await renderStats();
     await renderSessions();
   } catch (e) {
@@ -715,7 +814,7 @@ async function getLiveTabsByIds(ids) {
   return tabs.filter(Boolean);
 }
 
-async function renderLatest() {
+async function renderLatest({ focus = null } = {}) {
   const cached = await readTriageCache();
   state.cache = cached;
   if (!cached || !cached.groups?.length) {
@@ -726,6 +825,7 @@ async function renderLatest() {
         <p class="muted">Run one from the popup, enable auto-triage in Settings, or click "Triage now" above.</p>
       </div>
     `;
+    restoreLatestFocus(focus);
     return;
   }
 
@@ -738,12 +838,14 @@ async function renderLatest() {
     container.appendChild(buildGroupNode(g, idx));
   });
   hideBrokenFavicons(els.latestBody);
+  restoreLatestFocus(focus);
 }
 
 function buildGroupNode(g, idx) {
   const article = document.createElement("article");
   article.className = "group";
   article.dataset.idx = String(idx);
+  article.tabIndex = -1;
 
   const tabsHtml = (g.tabs ?? [])
     .map(
@@ -787,6 +889,28 @@ function buildGroupNode(g, idx) {
   return article;
 }
 
+function restoreLatestFocus(focus) {
+  if (!focus) return;
+  if (focus.type === "latest-tab") {
+    focusFirstAvailable([
+      `#latest-body .group[data-idx="${focus.idx}"] button[data-action="close-tab"]`,
+      `#latest-body .group[data-idx="${focus.idx}"] .group-actions button:not(:disabled)`,
+      `#latest-body .group[data-idx="${focus.idx}"]`,
+      "#latest-card",
+    ]);
+    return;
+  }
+  if (focus.type === "latest-group") {
+    focusFirstAvailable([
+      `#latest-body .group[data-idx="${focus.idx}"] button[data-action="${selectorAttr(focus.action)}"]:not(:disabled)`,
+      `#latest-body .group[data-idx="${focus.idx}"] .group-actions button:not(:disabled)`,
+      `#latest-body .group[data-idx="${focus.idx + 1}"] .group-actions button:not(:disabled)`,
+      `#latest-body .group[data-idx="${Math.max(0, focus.idx - 1)}"] .group-actions button:not(:disabled)`,
+      "#latest-card",
+    ]);
+  }
+}
+
 function onLatestTabLinkClick(e) {
   const url = e.currentTarget?.dataset?.tabUrl || e.currentTarget?.href;
   if (!url) return;
@@ -810,7 +934,7 @@ async function onGroupAction(idx, action, tabUrlAttr, btn) {
       try { await chrome.tabs.remove(t.id); } catch {}
     }
     g.tabs = g.tabs.filter(t => t.url !== url);
-    await persistCacheAndRefresh(cache);
+    await persistCacheAndRefresh(cache, { type: "latest-tab", idx });
     setHeroStatus(`Closed 1 tab from "${g.label}".`, "ok");
     return;
   }
@@ -857,7 +981,7 @@ async function onGroupAction(idx, action, tabUrlAttr, btn) {
       const saveResult = await saveSessionWithResult(session);
       if (liveTabs.length) await chrome.tabs.remove(liveTabs.map(t => t.id));
       cache.groups.splice(idx, 1);
-      await persistCacheAndRefresh(cache);
+      await persistCacheAndRefresh(cache, { type: "latest-group", idx, action });
       await renderSessions();
       await renderStats();
       const limitNotice = sessionLimitNotice(saveResult);
@@ -875,7 +999,7 @@ async function onGroupAction(idx, action, tabUrlAttr, btn) {
         await chrome.tabs.move(liveTabs.slice(1).map(t => t.id), { windowId: win.id, index: -1 });
       }
       cache.groups.splice(idx, 1);
-      await persistCacheAndRefresh(cache);
+      await persistCacheAndRefresh(cache, { type: "latest-group", idx, action });
       setHeroStatus(`Moved ${liveTabs.length} tab${liveTabs.length === 1 ? "" : "s"} to a new window.`, "ok");
     } else if (action === "close") {
       if (!confirm(`Close ${g.tabs.length} tabs in "${g.label}"? A recovery session will be saved first.`)) return;
@@ -886,7 +1010,7 @@ async function onGroupAction(idx, action, tabUrlAttr, btn) {
       }) : null;
       if (liveTabs.length) await chrome.tabs.remove(liveTabs.map(t => t.id));
       cache.groups.splice(idx, 1);
-      await persistCacheAndRefresh(cache);
+      await persistCacheAndRefresh(cache, { type: "latest-group", idx, action });
       await renderSessions();
       if (recovery) {
         if (btn) btn.textContent = "Recoverable";
@@ -897,10 +1021,11 @@ async function onGroupAction(idx, action, tabUrlAttr, btn) {
     }
   } catch (e) {
     setHeroStatus(`Action failed: ${e.message ?? e}`, "err");
+    if (btn) focusElement(btn);
   }
 }
 
-async function persistCacheAndRefresh(cache) {
+async function persistCacheAndRefresh(cache, focus = null) {
   // Preserve the original triage timestamp — these mutations are not a
   // fresh triage, just edits to an existing one.
   await saveTriageCache({
@@ -908,16 +1033,62 @@ async function persistCacheAndRefresh(cache) {
     groups: cache.groups,
     createdAt: cache.createdAt,
   });
-  await renderLatest();
+  await renderLatest({ focus });
   await renderStats();
 }
 
-async function renderSessions() {
+function captureSessionFocus() {
+  const active = document.activeElement;
+  if (!els.sessionList.contains(active)) return null;
+  if (active?.matches?.("textarea.session-notes")) {
+    return {
+      type: "session-notes",
+      id: active.dataset.id,
+      selectionStart: active.selectionStart,
+      selectionEnd: active.selectionEnd,
+    };
+  }
+  const action = active?.dataset?.action;
+  const id = active?.dataset?.id;
+  if (action && id) return { type: "session-action", action, id };
+  return null;
+}
+
+function restoreSessionFocus(focus) {
+  if (!focus) return;
+  if (focus.type === "session-notes") {
+    const textarea = els.sessionList.querySelector(`textarea.session-notes[data-id="${selectorAttr(focus.id)}"]`);
+    if (focusElement(textarea)) {
+      const start = Number.isInteger(focus.selectionStart) ? focus.selectionStart : textarea.value.length;
+      const end = Number.isInteger(focus.selectionEnd) ? focus.selectionEnd : start;
+      textarea.setSelectionRange(start, end);
+    }
+    return;
+  }
+  if (focus.type === "session-action") {
+    focusFirstAvailable([
+      `#session-list button[data-action="${selectorAttr(focus.action)}"][data-id="${selectorAttr(focus.id)}"]`,
+      `#session-list button[data-id="${selectorAttr(focus.id)}"]`,
+      "#session-list button[data-action]",
+      "#sessions-card",
+    ]);
+    return;
+  }
+  if (focus.type === "session-list") {
+    focusFirstAvailable([
+      "#session-list button[data-action]",
+      "#sessions-card",
+    ]);
+  }
+}
+
+async function renderSessions({ focus = captureSessionFocus() } = {}) {
   const sessions = await listSessions();
   els.sessionsCount.textContent = `${sessions.length}`;
   if (!sessions.length) {
     els.sessionList.innerHTML = "";
     els.sessionsEmpty.classList.remove("hidden");
+    restoreSessionFocus(focus);
     return;
   }
   els.sessionsEmpty.classList.add("hidden");
@@ -957,8 +1128,10 @@ async function renderSessions() {
       trackNoteAutosave(id, notes);
       try {
         await updateSession(id, { notes });
+        announceStatus("Note saved.");
       } catch (e) {
         clearTrackedNoteAutosave(id, notes);
+        announceAlert(`Note save failed: ${e.message ?? e}`);
         throw e;
       }
     }, 500);
@@ -977,6 +1150,7 @@ async function renderSessions() {
       ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
     }
   });
+  restoreSessionFocus(focus);
 }
 
 async function onSessionAction(action, id, sessions) {
@@ -1000,8 +1174,9 @@ async function onSessionAction(action, id, sessions) {
   } else if (action === "delete") {
     if (confirm("Delete this session?")) {
       await deleteSession(id);
-      await renderSessions();
+      await renderSessions({ focus: { type: "session-list" } });
       await renderStats();
+      setHeroStatus(`Deleted saved session "${s.title}".`, "ok");
     }
   } else if (action === "rename") {
     const nextTitle = prompt("Rename saved session", s.title ?? "");
@@ -1013,7 +1188,7 @@ async function onSessionAction(action, id, sessions) {
     }
     await updateSession(id, { title });
     s.title = title;
-    await renderSessions();
+    await renderSessions({ focus: { type: "session-action", action: "rename", id } });
     setHeroStatus(`Renamed saved session to "${title}".`, "ok");
   } else if (action === "copy") {
     await navigator.clipboard.writeText(sessionToMarkdown(s));
@@ -1033,6 +1208,7 @@ async function onSessionAction(action, id, sessions) {
 
 async function onTriageNow() {
   setHeroStatus("");
+  const hadFocus = document.activeElement === els.triageNow;
   const settings = await getSettings();
   if (!settings.llm?.apiKey) {
     await renderSetupState();
@@ -1055,6 +1231,7 @@ async function onTriageNow() {
   state.triageRunning = true;
   els.triageNow.disabled = true;
   els.triageNow.textContent = "Triaging…";
+  setHeroStatus("Triaging tabs.");
   await setTriageRunning(true).catch(() => {});
   try {
     const { result } = await runQuotaLimitedTriage({
@@ -1088,6 +1265,7 @@ async function onTriageNow() {
     els.triageNow.disabled = state.missingApiKey;
     els.triageNow.textContent = "Triage now";
     await renderBillingState().catch(() => {});
+    if (hadFocus) focusElement(els.triageNow);
   }
 }
 
@@ -1112,6 +1290,8 @@ function setHeroStatus(msg, cls = "", details = "") {
   els.heroStatus.textContent = msg;
   els.heroStatus.title = details;
   els.heroStatus.className = `status muted ${cls}`;
+  els.heroStatus.setAttribute("role", cls === "err" ? "alert" : "status");
+  els.heroStatus.setAttribute("aria-live", cls === "err" ? "assertive" : "polite");
 }
 
 function formatApplyStatus(summary, cap) {
@@ -1134,25 +1314,31 @@ function formatApplyStatus(summary, cap) {
 // the page. Failure puts the message in the button's title attribute.
 async function flashAsyncButton(btn, action, { sendingLabel = "Sending…", okLabel = "Sent", failLabel = "Failed" } = {}) {
   if (!btn) return action();
+  const hadFocus = document.activeElement === btn;
   const originalText = btn.textContent;
   const originalTitle = btn.title;
   btn.disabled = true;
   btn.textContent = sendingLabel;
+  announceStatus(sendingLabel);
   try {
     await action();
     btn.textContent = okLabel;
+    announceStatus(okLabel);
     setTimeout(() => {
       btn.textContent = originalText;
       btn.title = originalTitle;
       btn.disabled = false;
+      if (hadFocus) focusElement(btn);
     }, 1800);
   } catch (e) {
     btn.textContent = e?.shortLabel || failLabel;
     btn.title = e?.message ?? String(e);
+    announceAlert(e?.message ?? String(e));
     setTimeout(() => {
       btn.textContent = originalText;
       btn.title = originalTitle;
       btn.disabled = false;
+      if (hadFocus) focusElement(btn);
     }, 2800);
     throw e;
   }
