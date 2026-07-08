@@ -3,8 +3,10 @@ import {
   checkQuota,
   tabLimit,
   listSessions,
-  saveSession,
+  saveSessionWithResult,
   deleteSession,
+  updateSession,
+  getSessionLimitState,
 } from "../lib/storage.js";
 import { refreshPlan, openCheckout, billingEnabled } from "../lib/billing.js";
 import {
@@ -634,9 +636,12 @@ async function onGroupAction(idx, action, tabIdAttr, btn) {
   try {
     if (action === "archive") {
       const ids = tabIds(g.tabs);
-      await archiveGroup({ group: g, tabs: g.tabs });
+      await confirmSessionSaveCapacity("archive this group", "Archive canceled; no tabs were closed.");
+      const archived = await archiveGroup({ group: g, tabs: g.tabs });
       pruneCurrentWindowTabsById(ids);
       g.status = "archived";
+      const notice = sessionLimitNotice(archived.saveResult);
+      if (notice) showResultNotice(notice);
     } else if (action === "new-window") {
       await moveGroupToNewWindow({ tabs: g.tabs });
       g.status = "moved";
@@ -716,8 +721,15 @@ async function onSaveSession() {
       tabs: g.tabs.map(t => ({ title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
     })),
   };
-  await saveSession(session);
-  flashButton(els.saveSession, "Saved");
+  try {
+    await confirmSessionSaveCapacity("save this session", "Save canceled.");
+    const result = await saveSessionWithResult(session);
+    flashButton(els.saveSession, "Saved");
+    const notice = sessionLimitNotice(result);
+    if (notice) showResultNotice(notice);
+  } catch (e) {
+    showError(`Save failed: ${e.message ?? e}`);
+  }
 }
 
 function defaultSessionTitle(groups) {
@@ -747,6 +759,7 @@ async function renderSessions() {
       <div class="session-actions">
         <button data-action="restore-here" data-id="${s.id}" class="primary" aria-label="Open saved session here: ${escapeAttr(s.title)}">Open here</button>
         <button data-action="restore-new" data-id="${s.id}" aria-label="Open saved session in a new window: ${escapeAttr(s.title)}">New window</button>
+        <button data-action="rename" data-id="${s.id}" aria-label="Rename saved session: ${escapeAttr(s.title)}">Rename</button>
         <button data-action="copy" data-id="${s.id}" aria-label="Copy saved session as Markdown: ${escapeAttr(s.title)}">Copy Markdown</button>
         <button data-action="notion" data-id="${s.id}" aria-label="Send saved session to Notion: ${escapeAttr(s.title)}">Send to Notion</button>
         <button data-action="delete" data-id="${s.id}" aria-label="Delete saved session: ${escapeAttr(s.title)}">Delete</button>
@@ -781,6 +794,18 @@ async function onSessionAction(action, id) {
       await deleteSession(id);
       await renderSessions();
     }
+  } else if (action === "rename") {
+    const nextTitle = prompt("Rename saved session", s.title ?? "");
+    if (nextTitle == null) return;
+    const title = nextTitle.trim();
+    if (!title) {
+      showError("Enter a title to rename this session.");
+      return;
+    }
+    await updateSession(id, { title });
+    await renderSessions();
+    hideError();
+    showStatusNotice(`Renamed saved session to "${title}".`);
   } else if (action === "copy") {
     await navigator.clipboard.writeText(sessionToMarkdown(s));
   } else if (action === "notion") {
@@ -1469,12 +1494,15 @@ async function onArchiveAllStale() {
       tabs: actionTabs.map(t => ({ title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
     }],
   };
-  await saveSession(session);
   try {
+    await confirmSessionSaveCapacity("archive these stale tabs", "Archive canceled; no tabs were closed.");
+    const saveResult = await saveSessionWithResult(session);
     const ids = tabIds(actionTabs);
     await chrome.tabs.remove(ids);
     pruneCurrentWindowTabsById(ids);
     flashButton(els.staleArchiveAll, protectedTabs.length ? "Archived safe" : "Archived");
+    const notice = sessionLimitNotice(saveResult);
+    if (notice) showStatusNotice(notice);
     await Promise.all([renderStaleTabs(), renderDupeTabs()]);
   } catch (e) {
     showError(`Couldn't archive stale tabs: ${e.message ?? e}`);
@@ -1504,13 +1532,39 @@ async function onCloseAllDupes() {
 }
 
 async function requireCloseRecovery(options) {
+  await confirmSessionSaveCapacity("save a recovery session", "Recovery save canceled; no tabs were closed.");
   const recovery = await saveCloseRecoverySession(options);
   if (!recovery) throw new Error("No recoverable tabs found; nothing was closed.");
   return recovery;
 }
 
 function closeRecoveryMessage(recovery) {
-  return `Closed tabs are recoverable from Saved sessions: "${recovery.session.title}".`;
+  const limitNotice = sessionLimitNotice(recovery.saveResult);
+  return [
+    `Closed tabs are recoverable from Saved sessions: "${recovery.session.title}".`,
+    limitNotice,
+  ].filter(Boolean).join(" ");
+}
+
+async function confirmSessionSaveCapacity(actionLabel, cancelMessage) {
+  const state = await getSessionLimitState(1);
+  if (state.wouldBlock) {
+    throw new Error(`Saved session limit reached (${state.count}/${state.limit}). Delete an older session or change the limit in Settings before saving another session.`);
+  }
+  if (!state.wouldDiscard) return;
+  const deleted = state.wouldDiscard === 1
+    ? "the oldest saved session"
+    : `${state.wouldDiscard} oldest saved sessions`;
+  const ok = confirm(`You already have ${state.count} saved sessions. To ${actionLabel}, Tab Triage AI will keep your newest ${state.limit} sessions and delete ${deleted}. Continue?`);
+  if (!ok) throw new Error(cancelMessage || "Session save canceled.");
+}
+
+function sessionLimitNotice(result) {
+  if (!result?.discarded) return "";
+  const deleted = result.discarded === 1
+    ? "the oldest saved session"
+    : `${result.discarded} oldest saved sessions`;
+  return `Session limit (${result.limit}) reached; deleted ${deleted}. Change this in Settings.`;
 }
 
 function duplicateRecoveryGroups(duplicates) {

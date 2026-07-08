@@ -249,6 +249,14 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .status.err { color: var(--danger); }
 .hidden { display: none !important; }
 
+.session-limit-settings {
+  border-top: 1px solid var(--border);
+  margin: 14px 0 12px;
+  padding-top: 14px;
+}
+.session-limit-settings .row { margin-bottom: 6px; }
+.session-limit-settings .status { margin: 0; }
+
 code {
   background: var(--surface-2);
   padding: 1px 6px;

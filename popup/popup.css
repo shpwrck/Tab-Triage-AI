@@ -569,7 +569,7 @@ button.small { padding: 5px 10px; font-size: 12px; }
 }
 .session-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
 .session-title { font-weight: 600; margin-bottom: 6px; }
-.session-actions { display: flex; gap: 6px; margin-top: 6px; }
+.session-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .session-actions button { padding: 4px 8px; font-size: 11px; }
 
 .error {

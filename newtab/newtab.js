@@ -1,4 +1,11 @@
-import { getSettings, listSessions, deleteSession, saveSession, updateSession } from "../lib/storage.js";
+import {
+  getSettings,
+  listSessions,
+  deleteSession,
+  saveSessionWithResult,
+  updateSession,
+  getSessionLimitState,
+} from "../lib/storage.js";
 import { readTriageCache, saveTriageCache, clearTriageCache } from "../lib/triage_cache.js";
 import { LLMError } from "../lib/llm/index.js";
 import {
@@ -574,11 +581,16 @@ async function onArchiveAllStale() {
       },
     ],
   };
-  await saveSession(session);
   try {
+    await confirmSessionSaveCapacity("archive these stale tabs", "Archive canceled; no tabs were closed.");
+    const saveResult = await saveSessionWithResult(session);
     await chrome.tabs.remove(actionTabs.map(t => t.id));
     const note = protectedTabs.length ? ` ${protectedStaleNote(protectedTabs.length).trim()}` : "";
-    setHeroStatus(`Archived ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"} — recoverable from Saved sessions.${note}`, "ok");
+    const limitNotice = sessionLimitNotice(saveResult);
+    setHeroStatus([
+      `Archived ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"} — recoverable from Saved sessions.${note}`,
+      limitNotice,
+    ].filter(Boolean).join(" "), "ok");
     await renderStale();
     await renderStats();
     await renderSessions();
@@ -652,13 +664,39 @@ async function onCloseAllDuplicates() {
 }
 
 async function requireCloseRecovery(options) {
+  await confirmSessionSaveCapacity("save a recovery session", "Recovery save canceled; no tabs were closed.");
   const recovery = await saveCloseRecoverySession(options);
   if (!recovery) throw new Error("No recoverable tabs found; nothing was closed.");
   return recovery;
 }
 
 function closeRecoveryMessage(recovery) {
-  return `Recoverable from Saved sessions: "${recovery.session.title}".`;
+  const limitNotice = sessionLimitNotice(recovery.saveResult);
+  return [
+    `Recoverable from Saved sessions: "${recovery.session.title}".`,
+    limitNotice,
+  ].filter(Boolean).join(" ");
+}
+
+async function confirmSessionSaveCapacity(actionLabel, cancelMessage) {
+  const state = await getSessionLimitState(1);
+  if (state.wouldBlock) {
+    throw new Error(`Saved session limit reached (${state.count}/${state.limit}). Delete an older session or change the limit in Settings before saving another session.`);
+  }
+  if (!state.wouldDiscard) return;
+  const deleted = state.wouldDiscard === 1
+    ? "the oldest saved session"
+    : `${state.wouldDiscard} oldest saved sessions`;
+  const ok = confirm(`You already have ${state.count} saved sessions. To ${actionLabel}, Tab Triage AI will keep your newest ${state.limit} sessions and delete ${deleted}. Continue?`);
+  if (!ok) throw new Error(cancelMessage || "Session save canceled.");
+}
+
+function sessionLimitNotice(result) {
+  if (!result?.discarded) return "";
+  const deleted = result.discarded === 1
+    ? "the oldest saved session"
+    : `${result.discarded} oldest saved sessions`;
+  return `Session limit (${result.limit}) reached; deleted ${deleted}. Change this in Settings.`;
 }
 
 function duplicateRecoveryGroups(duplicates) {
@@ -815,13 +853,18 @@ async function onGroupAction(idx, action, tabUrlAttr, btn) {
           },
         ],
       };
-      await saveSession(session);
+      await confirmSessionSaveCapacity("archive this group", "Archive canceled; no tabs were closed.");
+      const saveResult = await saveSessionWithResult(session);
       if (liveTabs.length) await chrome.tabs.remove(liveTabs.map(t => t.id));
       cache.groups.splice(idx, 1);
       await persistCacheAndRefresh(cache);
       await renderSessions();
       await renderStats();
-      setHeroStatus(`Archived "${g.label}" — ${liveTabs.length} tab${liveTabs.length === 1 ? "" : "s"} closed, recoverable from Saved sessions.`, "ok");
+      const limitNotice = sessionLimitNotice(saveResult);
+      setHeroStatus([
+        `Archived "${g.label}" — ${liveTabs.length} tab${liveTabs.length === 1 ? "" : "s"} closed, recoverable from Saved sessions.`,
+        limitNotice,
+      ].filter(Boolean).join(" "), "ok");
     } else if (action === "new-window") {
       if (!liveTabs.length) {
         setHeroStatus(`No live tabs left for "${g.label}".`, "err");
@@ -895,6 +938,7 @@ async function renderSessions() {
       <div class="session-actions">
         <button data-action="restore-here" data-id="${s.id}" class="primary small">Open here</button>
         <button data-action="restore-new" data-id="${s.id}" class="small">New window</button>
+        <button data-action="rename" data-id="${s.id}" class="small">Rename</button>
         <button data-action="copy" data-id="${s.id}" class="small">Copy Markdown</button>
         <button data-action="notion" data-id="${s.id}" class="small">Send to Notion</button>
         <button data-action="delete" data-id="${s.id}" class="small danger-subtle">Delete</button>
@@ -959,6 +1003,18 @@ async function onSessionAction(action, id, sessions) {
       await renderSessions();
       await renderStats();
     }
+  } else if (action === "rename") {
+    const nextTitle = prompt("Rename saved session", s.title ?? "");
+    if (nextTitle == null) return;
+    const title = nextTitle.trim();
+    if (!title) {
+      setHeroStatus("Enter a title to rename this session.", "err");
+      return;
+    }
+    await updateSession(id, { title });
+    s.title = title;
+    await renderSessions();
+    setHeroStatus(`Renamed saved session to "${title}".`, "ok");
   } else if (action === "copy") {
     await navigator.clipboard.writeText(sessionToMarkdown(s));
     setHeroStatus(`Copied "${s.title}" as Markdown.`, "ok");
