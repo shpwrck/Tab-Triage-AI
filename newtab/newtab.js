@@ -7,6 +7,7 @@ import {
   focusOrOpenTabByUrl,
   formatApplyFailureMessage,
   restoreSession,
+  saveCloseRecoverySession,
   summarizeApplyResults,
 } from "../lib/actions.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
@@ -391,6 +392,7 @@ function computeDuplicates(tabs) {
       favIconUrl: keep.favIconUrl,
       keepId: keep.id,
       closeIds: closeable.map(t => t.id),
+      closeTabs: closeable.map(t => ({ title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
     });
   }
   duplicates.sort((a, b) => b.closeIds.length - a.closeIds.length);
@@ -432,7 +434,7 @@ async function renderDuplicates() {
       </div>
     `;
     li.querySelectorAll("button[data-action]").forEach(btn => {
-      btn.addEventListener("click", () => onDupeAction(btn.dataset.action, btn.dataset));
+      btn.addEventListener("click", () => onDupeAction(btn.dataset.action, btn.dataset, btn));
     });
     els.dupesList.appendChild(li);
   }
@@ -510,7 +512,7 @@ async function renderStale() {
 }
 
 async function onCloseAllStale() {
-  const { staleTabs, actionTabs, protectedTabs } = await loadStaleTabs();
+  const { staleTabs, actionTabs, protectedTabs, hours } = await loadStaleTabs();
   if (!staleTabs.length) return;
   if (!actionTabs.length) {
     setHeroStatus("Active or audible stale tabs need to be closed one at a time.", "err");
@@ -518,12 +520,28 @@ async function onCloseAllStale() {
     await renderStats();
     return;
   }
-  if (!confirm(`Close ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"} without saving?${protectedStaleNote(protectedTabs.length)}`)) return;
+  const label = formatThresholdLabel(hours);
+  if (!confirm(`Close ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"}? A recovery session will be saved first.${protectedStaleNote(protectedTabs.length)}`)) return;
   try {
-    await chrome.tabs.remove(actionTabs.map(t => t.id));
-    setHeroStatus(`Closed ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"}.`, "ok");
+    await flashAsyncButton(els.closeAllStale, async () => {
+      const recovery = await requireCloseRecovery({
+        title: `Recovery: stale tabs (${label})`,
+        groups: [{
+          label: `Stale tabs (${label})`,
+          summary: [
+            `${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"} (${label})`,
+            "Captured from the new-tab dashboard before close-all.",
+          ],
+          tabs: actionTabs,
+        }],
+        note: "Saved before closing stale tabs from the new-tab dashboard.",
+      });
+      await chrome.tabs.remove(actionTabs.map(t => t.id));
+      setHeroStatus(`Closed ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"}. ${closeRecoveryMessage(recovery)}`, "ok");
+    }, { sendingLabel: "Saving…", okLabel: "Recoverable" });
     await renderStale();
     await renderStats();
+    await renderSessions();
   } catch (e) {
     setHeroStatus(`Couldn't close stale tabs: ${e.message ?? e}`, "err");
   }
@@ -569,7 +587,7 @@ async function onArchiveAllStale() {
   }
 }
 
-async function onDupeAction(action, dataset) {
+async function onDupeAction(action, dataset, btn) {
   if (action === "focus") {
     const id = Number(dataset.keepId);
     try {
@@ -583,10 +601,26 @@ async function onDupeAction(action, dataset) {
     const ids = (dataset.closeIds || "").split(",").map(Number).filter(n => !Number.isNaN(n));
     if (!ids.length) return;
     try {
-      await chrome.tabs.remove(ids);
-      setHeroStatus(`Closed ${ids.length} duplicate${ids.length === 1 ? "" : "s"}.`, "ok");
+      await flashAsyncButton(btn, async () => {
+        const tabs = await getLiveTabsByIds(ids);
+        const recovery = await requireCloseRecovery({
+          title: "Recovery: duplicate tabs",
+          groups: [{
+            label: "Duplicate tabs",
+            summary: [
+              `${ids.length} duplicate tab${ids.length === 1 ? "" : "s"} closed`,
+              "Most recently used copy was kept.",
+            ],
+            tabs,
+          }],
+          note: "Saved before closing duplicate tabs from the new-tab dashboard.",
+        });
+        await chrome.tabs.remove(ids);
+        setHeroStatus(`Closed ${ids.length} duplicate${ids.length === 1 ? "" : "s"}. ${closeRecoveryMessage(recovery)}`, "ok");
+      }, { sendingLabel: "Saving…", okLabel: "Recoverable" });
       await renderDuplicates();
       await renderStats();
+      await renderSessions();
     } catch (e) {
       setHeroStatus(`Couldn't close duplicates: ${e.message ?? e}`, "err");
     }
@@ -597,16 +631,50 @@ async function onCloseAllDuplicates() {
   const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
   const { duplicates, totalRedundant } = computeDuplicates(tabs);
   if (!totalRedundant) return;
-  if (!confirm(`Close ${totalRedundant} duplicate tab${totalRedundant === 1 ? "" : "s"} across ${duplicates.length} URL${duplicates.length === 1 ? "" : "s"}? The most recently used copy of each will be kept.`)) return;
+  if (!confirm(`Close ${totalRedundant} duplicate tab${totalRedundant === 1 ? "" : "s"} across ${duplicates.length} URL${duplicates.length === 1 ? "" : "s"}? A recovery session will be saved first. The most recently used copy of each will be kept.`)) return;
   const ids = duplicates.flatMap(d => d.closeIds);
   try {
-    await chrome.tabs.remove(ids);
-    setHeroStatus(`Closed ${ids.length} duplicate tab${ids.length === 1 ? "" : "s"}.`, "ok");
+    await flashAsyncButton(els.closeAllDupes, async () => {
+      const recovery = await requireCloseRecovery({
+        title: "Recovery: duplicate tabs",
+        groups: duplicateRecoveryGroups(duplicates),
+        note: "Saved before closing duplicate tabs from the new-tab dashboard.",
+      });
+      await chrome.tabs.remove(ids);
+      setHeroStatus(`Closed ${ids.length} duplicate tab${ids.length === 1 ? "" : "s"}. ${closeRecoveryMessage(recovery)}`, "ok");
+    }, { sendingLabel: "Saving…", okLabel: "Recoverable" });
     await renderDuplicates();
     await renderStats();
+    await renderSessions();
   } catch (e) {
     setHeroStatus(`Couldn't close duplicates: ${e.message ?? e}`, "err");
   }
+}
+
+async function requireCloseRecovery(options) {
+  const recovery = await saveCloseRecoverySession(options);
+  if (!recovery) throw new Error("No recoverable tabs found; nothing was closed.");
+  return recovery;
+}
+
+function closeRecoveryMessage(recovery) {
+  return `Recoverable from Saved sessions: "${recovery.session.title}".`;
+}
+
+function duplicateRecoveryGroups(duplicates) {
+  return (duplicates ?? []).map((d, index) => ({
+    label: d.title || safeHost(d.url) || `Duplicate URL ${index + 1}`,
+    summary: [
+      `${(d.closeTabs ?? []).length} duplicate tab${(d.closeTabs ?? []).length === 1 ? "" : "s"} closed`,
+      "Most recently used copy was kept.",
+    ],
+    tabs: d.closeTabs ?? [],
+  }));
+}
+
+async function getLiveTabsByIds(ids) {
+  const tabs = await Promise.all(ids.map(id => chrome.tabs.get(id).catch(() => null)));
+  return tabs.filter(Boolean);
 }
 
 async function renderLatest() {
@@ -663,14 +731,14 @@ function buildGroupNode(g, idx) {
       <button data-action="archive" class="primary small" title="Save as a session and close these tabs">Archive</button>
       <button data-action="new-window" class="small" title="Move these tabs to a new window">New window</button>
       <button data-action="notion" class="small" title="Send this group to Notion">Send to Notion</button>
-      <button data-action="close" class="small danger-subtle" title="Close these tabs (no save)">Close all</button>
+      <button data-action="close" class="small danger-subtle" title="Save a recovery session and close these tabs">Close all</button>
     </div>
   `;
 
   article.querySelectorAll("button[data-action]").forEach(btn => {
     btn.addEventListener("click", e => {
       e.stopPropagation();
-      onGroupAction(idx, btn.dataset.action, btn.dataset.tabUrl);
+      onGroupAction(idx, btn.dataset.action, btn.dataset.tabUrl, btn);
     });
   });
 
@@ -691,7 +759,7 @@ function onLatestTabLinkClick(e) {
   });
 }
 
-async function onGroupAction(idx, action, tabUrlAttr) {
+async function onGroupAction(idx, action, tabUrlAttr, btn) {
   const cache = state.cache;
   if (!cache) return;
   const g = cache.groups[idx];
@@ -767,11 +835,22 @@ async function onGroupAction(idx, action, tabUrlAttr) {
       await persistCacheAndRefresh(cache);
       setHeroStatus(`Moved ${liveTabs.length} tab${liveTabs.length === 1 ? "" : "s"} to a new window.`, "ok");
     } else if (action === "close") {
-      if (!confirm(`Close ${g.tabs.length} tabs in "${g.label}" without saving?`)) return;
+      if (!confirm(`Close ${g.tabs.length} tabs in "${g.label}"? A recovery session will be saved first.`)) return;
+      const recovery = liveTabs.length ? await requireCloseRecovery({
+        title: `Recovery: ${g.label || "tab group"}`,
+        groups: [{ ...g, tabs: liveTabs }],
+        note: "Saved before closing this group from the new-tab dashboard.",
+      }) : null;
       if (liveTabs.length) await chrome.tabs.remove(liveTabs.map(t => t.id));
       cache.groups.splice(idx, 1);
       await persistCacheAndRefresh(cache);
-      setHeroStatus(`Closed ${liveTabs.length} tab${liveTabs.length === 1 ? "" : "s"} from "${g.label}".`, "ok");
+      await renderSessions();
+      if (recovery) {
+        if (btn) btn.textContent = "Recoverable";
+        setHeroStatus(`Closed ${liveTabs.length} tab${liveTabs.length === 1 ? "" : "s"} from "${g.label}". ${closeRecoveryMessage(recovery)}`, "ok");
+      } else {
+        setHeroStatus(`Closed ${liveTabs.length} tab${liveTabs.length === 1 ? "" : "s"} from "${g.label}".`, "ok");
+      }
     }
   } catch (e) {
     setHeroStatus(`Action failed: ${e.message ?? e}`, "err");
