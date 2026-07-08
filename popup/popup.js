@@ -22,7 +22,19 @@ import {
   summarizeApplyResults,
 } from "../lib/actions.js";
 import { POPUP_TRIAGE_STATE_KEY, readPopupTriageState } from "../lib/popup_triage.js";
-import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
+import {
+  appendSessionToNotionPage,
+  sendSessionToNotion,
+  triageToNotionSession,
+  NotionError,
+} from "../lib/notion.js";
+import {
+  clearNotionPartialExport,
+  loadNotionPartialExport,
+  notionExportKey,
+  notionGroupsPayload,
+  saveNotionPartialExport,
+} from "../lib/notion_retry.js";
 import { fuzzyScoreMulti } from "../lib/fuzzy.js";
 import { formatThresholdLabel } from "../lib/badge.js";
 import { isTriageEligibleTab, splitStaleBulkActionTabs, staleThresholdMs } from "../lib/tab_policy.js";
@@ -669,19 +681,20 @@ async function onGroupAction(idx, action, tabIdAttr, btn) {
   if (action === "notion") {
     const btn = els.groups
       .querySelector(`.group[data-idx="${idx}"] button[data-action="notion"]`);
+    const groups = [g];
     try {
-      await flashAsyncButton(btn, async () => {
-        const { token, parentPageId, provider } = await assertNotionReady();
-        await sendTriageToNotion({
+      await exportSessionToNotion({
+        key: notionExportKey("triage-group", notionGroupsPayload(groups)),
+        btn,
+        noticeEl: els.resultNotice,
+        sessionFactory: ({ provider }) => triageToNotionSession({
           title: g.label || "Tab group",
-          groups: [g],
-          token,
-          parentPageId,
+          groups,
           provider,
-        });
+        }),
       });
     } catch {
-      // Detail lives on the button's title attribute.
+      // Visible detail is kept in the result notice.
     }
     return;
   }
@@ -906,12 +919,14 @@ async function onSessionAction(action, id, btn) {
     btn = btn || els.sessionList
       .querySelector(`button[data-action="notion"][data-id="${id}"]`);
     try {
-      await flashAsyncButton(btn, async () => {
-        const { token, parentPageId } = await assertNotionReady();
-        await sendSessionToNotion({ session: s, token, parentPageId });
+      await exportSessionToNotion({
+        key: notionExportKey("session", { id: s.id, createdAt: s.createdAt }),
+        btn,
+        noticeEl: els.statusNotice,
+        sessionFactory: () => s,
       });
     } catch {
-      // Title attribute on the button now carries the detailed error.
+      // Visible detail is kept in the status notice.
     }
   }
 }
@@ -924,20 +939,91 @@ function onExportMarkdown() {
 
 async function onExportNotion() {
   if (!state.lastResult) return;
+  const groups = state.lastResult.groups;
   try {
-    await flashAsyncButton(els.exportNotion, async () => {
-      const { token, parentPageId, provider } = await assertNotionReady();
-      await sendTriageToNotion({
+    await exportSessionToNotion({
+      key: notionExportKey("triage-result", notionGroupsPayload(groups)),
+      btn: els.exportNotion,
+      noticeEl: els.resultNotice,
+      sessionFactory: ({ provider }) => triageToNotionSession({
         title: `Tab Triage AI · ${new Date().toLocaleString()}`,
-        groups: state.lastResult.groups,
-        token,
-        parentPageId,
+        groups,
         provider,
-      });
+      }),
     });
   } catch {
-    // Detail lives on the button's title attribute.
+    // Visible detail is kept in the result notice.
   }
+}
+
+async function exportSessionToNotion({ key, btn, noticeEl, sessionFactory }) {
+  const pending = loadNotionPartialExport(key);
+  await flashAsyncButton(btn, async () => {
+    const { token, parentPageId, provider } = await assertNotionReady();
+    const session = pending?.session ?? sessionFactory({ provider });
+    try {
+      const page = pending
+        ? await appendSessionToNotionPage({
+          session,
+          token,
+          pageId: pending.pageId,
+          pageUrl: pending.pageUrl,
+          startBlockIndex: pending.nextBlockIndex,
+        })
+        : await sendSessionToNotion({ session, token, parentPageId });
+      clearNotionPartialExport(key);
+      showNotionNotice(noticeEl, {
+        tone: "ok",
+        message: pending
+          ? "Appended the remaining blocks to the existing Notion page."
+          : "Sent to Notion.",
+        pageUrl: page?.url || pending?.pageUrl,
+        linkLabel: "Open page",
+      });
+    } catch (e) {
+      if (e instanceof NotionError) {
+        handleNotionExportFailure({ key, session, error: e, noticeEl });
+      }
+      throw e;
+    }
+  }, {
+    sendingLabel: pending ? "Appending…" : "Sending…",
+    okLabel: pending ? "Appended" : "Sent",
+  });
+}
+
+function handleNotionExportFailure({ key, session, error, noticeEl }) {
+  if (error.pageId) {
+    const record = {
+      key,
+      session,
+      pageId: error.pageId,
+      pageUrl: error.pageUrl,
+      nextBlockIndex: error.nextBlockIndex,
+      totalBlocks: error.totalBlocks,
+      errorMessage: error.message,
+    };
+    saveNotionPartialExport(record);
+    showNotionNotice(noticeEl, {
+      tone: "error",
+      message: partialNotionFailureMessage(record, error),
+      pageUrl: record.pageUrl,
+      linkLabel: "Open partial page",
+    });
+    return;
+  }
+  showNotionNotice(noticeEl, {
+    tone: "error",
+    message: `Notion export failed: ${error.message}`,
+  });
+}
+
+function partialNotionFailureMessage(record, error) {
+  const total = Number.isInteger(record.totalBlocks) ? record.totalBlocks : 0;
+  const next = Number.isInteger(record.nextBlockIndex) ? record.nextBlockIndex : 0;
+  const progress = total ? ` after writing ${Math.min(next, total)} of ${total} blocks` : "";
+  const remaining = total ? `${Math.max(total - next, 0)} remaining ${plural(Math.max(total - next, 0), "block")}` : "the remaining blocks";
+  return `Notion created a partial page${progress}, then failed: ${error.message}. Click Send to Notion again to append ${remaining} to that page instead of creating another page.`;
 }
 
 // Returns the live Notion config or throws a GateError tagged with a
@@ -1008,6 +1094,7 @@ function showStatusNotice(msg) {
     hideStatusNotice();
     return;
   }
+  resetNoticeTone(els.statusNotice);
   els.statusNotice.textContent = msg;
   els.statusNotice.classList.remove("hidden");
 }
@@ -1015,6 +1102,7 @@ function showStatusNotice(msg) {
 function hideStatusNotice() {
   els.statusNotice.classList.add("hidden");
   els.statusNotice.textContent = "";
+  resetNoticeTone(els.statusNotice);
 }
 
 function showResultNotice(msg) {
@@ -1022,6 +1110,7 @@ function showResultNotice(msg) {
     hideResultNotice();
     return;
   }
+  resetNoticeTone(els.resultNotice);
   els.resultNotice.textContent = msg;
   els.resultNotice.classList.remove("hidden");
 }
@@ -1029,6 +1118,31 @@ function showResultNotice(msg) {
 function hideResultNotice() {
   els.resultNotice.classList.add("hidden");
   els.resultNotice.textContent = "";
+  resetNoticeTone(els.resultNotice);
+}
+
+function showNotionNotice(noticeEl, { message, tone = "", pageUrl = "", linkLabel = "Open page" }) {
+  if (!noticeEl) return;
+  resetNoticeTone(noticeEl);
+  if (tone) noticeEl.classList.add(`is-${tone}`);
+  noticeEl.textContent = "";
+  const text = document.createElement("span");
+  text.textContent = message;
+  noticeEl.append(text);
+  if (pageUrl) {
+    noticeEl.append(" ");
+    const link = document.createElement("a");
+    link.href = pageUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = linkLabel;
+    noticeEl.append(link);
+  }
+  noticeEl.classList.remove("hidden");
+}
+
+function resetNoticeTone(noticeEl) {
+  noticeEl.classList.remove("is-error", "is-ok", "is-warn");
 }
 
 function flashButton(btn, text) {
