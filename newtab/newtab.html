@@ -124,6 +124,20 @@
         </div>
       </section>
 
+      <section class="card hidden" id="snapshots-card">
+        <div class="card-head">
+          <div>
+            <h2>Automatic snapshots</h2>
+            <p class="muted" id="snapshots-help" style="margin: 4px 0 0;">Local recovery points for accidental closes or browser restarts.</p>
+          </div>
+          <span class="muted" id="snapshots-count"></span>
+        </div>
+        <ul id="snapshot-list" class="session-list snapshot-list"></ul>
+        <div id="snapshots-empty" class="empty hidden">
+          <p class="muted">No automatic snapshots yet.</p>
+        </div>
+      </section>
+
       <section class="card" id="sessions-card">
         <div class="card-head">
           <h2>Saved sessions</h2>

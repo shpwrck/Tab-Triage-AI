@@ -18,6 +18,7 @@
         <li><a href="#section-exclusions">Exclusions</a></li>
         <li><a href="#section-notion">Notion</a></li>
         <li><a href="#section-sync">Sync</a></li>
+        <li><a href="#section-snapshots">Snapshots</a></li>
         <li><a href="#section-backup">Backup</a></li>
         <li><a href="#section-privacy">Privacy</a></li>
       </ul>
@@ -150,7 +151,7 @@
         <p id="plan-status" class="muted" role="status" aria-live="polite" aria-atomic="true">Loading plan…</p>
         <p>
           <strong>Free:</strong> 5 triages per week, up to 10 tabs per triage.<br />
-          <strong id="lifetime-headline">Lifetime · one-time payment:</strong> unlimited triages, no tab cap, dark mode, custom stale intervals, triage exclusions, settings and sessions backup, and Notion export. No subscription, no renewals — buy once, keep forever.
+          <strong id="lifetime-headline">Lifetime · one-time payment:</strong> unlimited triages, no tab cap, dark mode, custom stale intervals, triage exclusions, automatic snapshots, settings and sessions backup, and Notion export. No subscription, no renewals — buy once, keep forever.
         </p>
         <div class="actions" id="plan-actions"></div>
         <p id="waitlist-wrap" class="muted hidden" style="margin-top:12px;">
@@ -343,6 +344,38 @@
           Sessions larger than ~8 KB (rare; a 50-tab session is around 5 KB) stay local-only.
           Disabling sync also clears Tab Triage AI's keys from the sync silo.
         </p>
+      </section>
+
+      <section class="card" id="section-snapshots">
+        <h2>Automatic snapshots</h2>
+        <p class="muted">
+          Keep a rolling local safety net of recent open tabs for accidental closes or browser restarts.
+          Snapshots store tab titles, URLs, and favicons in this browser's local storage only. They do not
+          sync and are never sent to an AI provider.
+        </p>
+        <label class="checkbox-row">
+          <input id="snapshots-enabled" type="checkbox" />
+          <span><strong>Save automatic local session snapshots</strong></span>
+        </label>
+        <div class="settings-group" id="snapshots-config">
+          <div class="row">
+            <label class="field">
+              <span class="field-label">Snapshot retention</span>
+              <select id="snapshot-limit"></select>
+              <span class="field-hint">Oldest snapshots are deleted automatically.</span>
+            </label>
+            <label class="field">
+              <span class="field-label">Capture interval</span>
+              <select id="snapshot-interval"></select>
+              <span class="field-hint">Tab changes are batched before a snapshot is stored.</span>
+            </label>
+          </div>
+          <div class="actions">
+            <button id="snapshot-capture" class="ghost">Capture now</button>
+            <button id="snapshot-clear" class="ghost">Clear snapshots</button>
+            <span id="snapshots-status" class="status" role="status" aria-live="polite" aria-atomic="true"></span>
+          </div>
+        </div>
       </section>
 
       <section class="card" id="section-backup">

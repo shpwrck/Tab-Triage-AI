@@ -6,6 +6,11 @@ import {
   updateSession,
   getSessionLimitState,
 } from "../lib/storage.js";
+import {
+  deleteSessionSnapshot,
+  listSessionSnapshots,
+  snapshotUrls,
+} from "../lib/session_snapshots.js";
 import { readTriageCache, saveTriageCache, clearTriageCache } from "../lib/triage_cache.js";
 import { LLMError } from "../lib/llm/index.js";
 import {
@@ -98,6 +103,11 @@ const els = {
   dupesEmpty: $("#dupes-empty"),
   dupesFooter: $("#dupes-footer"),
   closeAllDupes: $("#close-all-dupes"),
+  snapshotsCard: $("#snapshots-card"),
+  snapshotsHelp: $("#snapshots-help"),
+  snapshotList: $("#snapshot-list"),
+  snapshotsCount: $("#snapshots-count"),
+  snapshotsEmpty: $("#snapshots-empty"),
   sessionList: $("#session-list"),
   sessionsCount: $("#sessions-count"),
   sessionsEmpty: $("#sessions-empty"),
@@ -190,6 +200,7 @@ async function init() {
     renderLatest(),
     renderStale(),
     renderDuplicates(),
+    renderSnapshots(),
     renderSessions(),
   ]);
   // Live-update when the auto-triage or popup writes a new cache.
@@ -203,6 +214,7 @@ async function init() {
       renderSetupState().catch(() => {});
       renderBillingState().catch(() => {});
       renderBackgroundStatus().catch(() => {});
+      renderSnapshots().catch(() => {});
     }
     if (changes[BACKGROUND_STATUS_KEY]) renderBackgroundStatus().catch(() => {});
     if (changes.tt_quota) renderBillingState().catch(() => {});
@@ -210,6 +222,7 @@ async function init() {
     if (changes.tt_sessions && !isOwnNoteAutosaveChange(changes.tt_sessions)) {
       renderSessions().catch(() => {});
     }
+    if (changes.tt_session_snapshots) renderSnapshots().catch(() => {});
   });
   // Tab inventory changes — debounce so a rapid burst (opening 10 links
   // at once, navigating, etc.) collapses into one re-render.
@@ -1107,6 +1120,118 @@ async function persistCacheAndRefresh(cache, focus = null) {
   });
   await renderLatest({ focus });
   await renderStats();
+}
+
+async function renderSnapshots() {
+  const [settings, snapshots] = await Promise.all([
+    getSettings(),
+    listSessionSnapshots(),
+  ]);
+  const isLifetime = settings.plan === "lifetime";
+  const enabled = !!settings.snapshots?.enabled;
+  const shouldShow = snapshots.length || (isLifetime && enabled);
+
+  if (!shouldShow) {
+    els.snapshotsCard.classList.add("hidden");
+    els.snapshotList.innerHTML = "";
+    els.snapshotsCount.textContent = "";
+    return;
+  }
+
+  els.snapshotsCard.classList.remove("hidden");
+  els.snapshotsCount.textContent = `${snapshots.length}`;
+  els.snapshotsHelp.textContent = isLifetime
+    ? "Local recovery points for accidental closes or browser restarts. Snapshots never sync."
+    : "Snapshot recovery is a Lifetime feature. Existing snapshots stay local.";
+
+  if (!snapshots.length) {
+    els.snapshotList.innerHTML = "";
+    els.snapshotsEmpty.classList.remove("hidden");
+    els.snapshotsEmpty.innerHTML = `
+      <p class="muted">No automatic snapshots yet.</p>
+      <p class="muted">Keep browsing after enabling snapshots in Settings, or use Capture now there.</p>
+    `;
+    return;
+  }
+
+  els.snapshotsEmpty.classList.add("hidden");
+  els.snapshotList.innerHTML = "";
+  for (const snapshot of snapshots) {
+    const urls = snapshotUrls(snapshot);
+    const windowCount = snapshot.windowCount || 1;
+    const groupLabels = (snapshot.groups ?? []).map(group => group.label).filter(Boolean);
+    const summary = groupLabels.length
+      ? `Includes ${formatSnapshotLabelList(groupLabels)}.`
+      : "Automatic local snapshot.";
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div class="session-meta">
+        <span>${escape(new Date(snapshot.createdAt).toLocaleString())}</span>
+        <span>${windowCount} window${windowCount === 1 ? "" : "s"} · ${urls.length} tab${urls.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="session-title">${escape(snapshot.title || "Automatic snapshot")}</div>
+      <div class="session-summary">${escape(summary)}</div>
+      <div class="session-actions">
+        <button data-action="restore-here" data-id="${escapeAttr(snapshot.id)}" class="primary small">Open here</button>
+        <button data-action="restore-new" data-id="${escapeAttr(snapshot.id)}" class="small">New window</button>
+        <button data-action="delete" data-id="${escapeAttr(snapshot.id)}" class="small danger-subtle">Delete</button>
+      </div>
+    `;
+    if (!isLifetime) {
+      li.querySelectorAll('button[data-action^="restore"]').forEach(btn => {
+        btn.disabled = true;
+        btn.title = "Snapshot recovery is a Lifetime feature.";
+      });
+    }
+    els.snapshotList.appendChild(li);
+  }
+
+  els.snapshotList.querySelectorAll("button[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => onSnapshotAction(btn.dataset.action, btn.dataset.id, snapshots, btn));
+  });
+}
+
+async function onSnapshotAction(action, id, snapshots, btn) {
+  const snapshot = snapshots.find(item => item.id === id);
+  if (!snapshot) return;
+  if (action === "delete") {
+    if (!confirm("Delete this automatic snapshot from local storage?")) return;
+    await deleteSessionSnapshot(id);
+    await renderSnapshots();
+    setHeroStatus("Deleted automatic snapshot.", "ok");
+    return;
+  }
+
+  if (action !== "restore-here" && action !== "restore-new") return;
+  await flashAsyncButton(btn, async () => {
+    const settings = await getSettings();
+    if (settings.plan !== "lifetime") {
+      throw new GateError(
+        "Snapshot recovery is a lifetime feature. Open Settings to upgrade.",
+        "Lifetime only",
+      );
+    }
+    const urls = snapshotUrls(snapshot);
+    if (!urls.length) throw new Error("No URLs in this snapshot.");
+    if (action === "restore-here") {
+      const win = await chrome.windows.getCurrent();
+      await restoreSession({ urls, windowId: win.id });
+      setHeroStatus(`Opened snapshot in this window (${urls.length} tab${urls.length === 1 ? "" : "s"}).`, "ok");
+    } else {
+      await restoreSession({ urls });
+      setHeroStatus(`Opened snapshot in a new window (${urls.length} tab${urls.length === 1 ? "" : "s"}).`, "ok");
+    }
+  }, {
+    sendingLabel: "Opening...",
+    okLabel: "Opened",
+  });
+}
+
+function formatSnapshotLabelList(labels, max = 2) {
+  const visible = labels.slice(0, max).map(label => `"${label}"`);
+  const extra = labels.length - visible.length;
+  if (!extra) return visible.join(", ");
+  return `${visible.join(", ")} and ${extra} more`;
 }
 
 function captureSessionFocus() {
