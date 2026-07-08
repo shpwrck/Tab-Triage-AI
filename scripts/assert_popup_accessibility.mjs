@@ -49,6 +49,22 @@ const requiredSnippets = [
     label: "saved-session delete action names the session",
     snippet: 'aria-label="Delete saved session: ${escapeAttr(s.title)}"',
   },
+  {
+    label: "suggested group labels are editable inputs",
+    snippet: 'class="group-label-input"',
+  },
+  {
+    label: "suggested group label input names the current group",
+    snippet: 'aria-label="Edit group label: ${escapeAttr(labelValue)}"',
+  },
+  {
+    label: "suggested tab membership selectors name the tab",
+    snippet: 'aria-label="Move tab to suggested group: ${escapeAttr(tabTitle)}"',
+  },
+  {
+    label: "suggested tab close buttons name the tab",
+    snippet: 'aria-label="Close tab: ${escapeAttr(tabTitle)}"',
+  },
 ];
 
 for (const { label, snippet } of requiredSnippets) {
@@ -113,6 +129,11 @@ const behaviorSnippets = [
     label: "popup restores focus into rebuilt group nodes",
     source: popup,
     snippet: "function replaceGroupNode(idx, { focusSelectors = [] } = {})",
+  },
+  {
+    label: "popup restores focus after moving a suggested tab",
+    source: popup,
+    snippet: "function onGroupMembershipChange(fromIdx, select)",
   },
   {
     label: "new-tab restores note textarea focus after session rerenders",
