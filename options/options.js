@@ -59,7 +59,6 @@ const els = {
   resume: $("#resume"),
   autoStatus: $("#auto-status"),
   badgeEnabled: $("#badge-enabled"),
-  badgeConfig: $("#badge-config"),
   badgeThreshold: $("#badge-threshold"),
   badgeThresholdCustomOpt: $("#badge-threshold-custom-opt"),
   badgeThresholdCustom: $("#badge-threshold-custom"),
@@ -545,7 +544,6 @@ async function initBadge(settings) {
   let currentThresholdHours = cfg.thresholdHours;
 
   els.badgeEnabled.checked = !!cfg.enabled;
-  els.badgeConfig.classList.toggle("hidden", !cfg.enabled);
   els.sleepEnabled.checked = !!fresh.sleep?.enabled;
 
   els.badgeThresholdCustomOpt.disabled = !isLifetime;
@@ -560,7 +558,6 @@ async function initBadge(settings) {
   els.badgeEnabled.addEventListener("change", async () => {
     const enabled = els.badgeEnabled.checked;
     await saveSettings({ badge: { enabled } });
-    els.badgeConfig.classList.toggle("hidden", !enabled);
     await refreshBadgeStatus();
   });
 
@@ -623,7 +620,13 @@ function applyCustomThresholdToUi(hours, isLifetime) {
 
 async function refreshBadgeStatus() {
   try {
-    const { count } = await updateBadge();
+    const settings = await getSettings();
+    const result = await updateBadge();
+    if (!settings.badge?.enabled) {
+      setStatusElement(els.badgeStatus, "Threshold saved for dashboard and auto-sleep. Toolbar badge is off.", "ok");
+      return;
+    }
+    const count = result.staleCount ?? result.count ?? 0;
     setStatusElement(els.badgeStatus, count === 0
       ? "Currently 0 stale tabs."
       : `Currently ${count} stale tab${count === 1 ? "" : "s"}.`, "ok");
