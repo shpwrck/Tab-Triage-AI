@@ -67,6 +67,7 @@ const els = {
   back: $("#back"),
   sessionsBack: $("#sessions-back"),
   showSessions: $("#show-sessions"),
+  addGroup: $("#add-group"),
   saveSession: $("#save-session"),
   exportMd: $("#export-md"),
   exportNotion: $("#export-notion"),
@@ -102,6 +103,7 @@ const state = {
 
 let latestTabLoadId = 0;
 const removedTabIds = new Set();
+let editPersistTimer = null;
 
 function announceStatus(msg) {
   announceToLiveRegion(els.srStatus, msg);
@@ -149,6 +151,7 @@ async function init() {
   els.back.addEventListener("click", showPicker);
   els.sessionsBack.addEventListener("click", showPicker);
   els.showSessions.addEventListener("click", showSessions);
+  els.addGroup.addEventListener("click", onAddGroup);
   els.saveSession.addEventListener("click", onSaveSession);
   els.exportMd.addEventListener("click", onExportMarkdown);
   els.exportNotion.addEventListener("click", onExportNotion);
@@ -576,9 +579,51 @@ async function showSessions() {
 function renderGroups() {
   els.groups.innerHTML = "";
   if (!state.lastResult) return;
+  ensureEditableGroupShape();
   state.lastResult.groups.forEach((g, idx) => {
     els.groups.appendChild(buildGroupNode(g, idx));
   });
+}
+
+function ensureEditableGroupShape() {
+  for (const [idx, group] of (state.lastResult?.groups ?? []).entries()) {
+    if (!Array.isArray(group.tabs)) group.tabs = [];
+    if (!Number.isInteger(group.colorIndex)) group.colorIndex = idx;
+  }
+}
+
+function editableGroupLabel(group, idx) {
+  const label = String(group?.label ?? "").trim();
+  return label || `Group ${idx + 1}`;
+}
+
+function normalizeEditedGroups({ refreshDom = true } = {}) {
+  ensureEditableGroupShape();
+  for (const [idx, group] of (state.lastResult?.groups ?? []).entries()) {
+    group.label = editableGroupLabel(group, idx);
+  }
+  if (refreshDom) refreshGroupMoveOptions();
+}
+
+function resultGroupsForOutput() {
+  normalizeEditedGroups();
+  return (state.lastResult?.groups ?? [])
+    .filter(g => (g.tabs ?? []).length > 0);
+}
+
+function groupMoveOptions(currentIdx) {
+  return (state.lastResult?.groups ?? [])
+    .map((group, optionIdx) => `
+      <option value="${optionIdx}" ${optionIdx === currentIdx ? "selected" : ""}>${escape(editableGroupLabel(group, optionIdx))}</option>
+    `)
+    .join("");
+}
+
+function tabKey(tab) {
+  if (Number.isFinite(tab?.id)) return `id:${tab.id}`;
+  const url = String(tab?.url ?? "");
+  if (url) return `url:${url}`;
+  return `title:${String(tab?.title ?? "")}`;
 }
 
 function buildGroupNode(g, idx) {
@@ -588,18 +633,36 @@ function buildGroupNode(g, idx) {
   div.tabIndex = -1;
   if (g.status) div.classList.add(`group-status-${g.status}`);
 
+  const tabs = Array.isArray(g.tabs) ? g.tabs : [];
+  const canEdit = !g.status;
+  const labelValue = editableGroupLabel(g, idx);
+  const labelId = `group-label-${idx}`;
   const summary = (g.summary ?? []).map(b => `<li>${escape(b)}</li>`).join("");
-  const tabsHtml = (g.tabs ?? [])
-    .map(
-      t => `
-      <li data-tab-id="${t.id}">
-        <img class="favicon" src="${escapeAttr(t.favIconUrl || "")}" />
-        <a href="${escapeAttr(t.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(t.title)}">${escape(t.title)}</a>
-        <button class="tab-close" title="Close this tab" data-action="close-tab" data-tab-id="${t.id}">×</button>
-      </li>
-    `,
-    )
-    .join("");
+  const tabsHtml = tabs.length
+    ? tabs
+      .map(t => {
+        const tabTitle = t.title || t.url || "Untitled tab";
+        const key = tabKey(t);
+        const moveId = `group-${idx}-${key.replace(/[^a-z0-9_-]/gi, "-")}-move`;
+        const moveControl = canEdit
+          ? `
+            <label class="sr-only" for="${moveId}">Move "${escape(tabTitle)}" to another suggested group</label>
+            <select id="${moveId}" class="tab-move" data-action="move-tab" data-tab-key="${escapeAttr(key)}" aria-label="Move tab to suggested group: ${escapeAttr(tabTitle)}">
+              ${groupMoveOptions(idx)}
+            </select>
+          `
+          : "";
+        return `
+          <li data-tab-key="${escapeAttr(key)}" data-tab-id="${escapeAttr(t.id)}">
+            <img class="favicon" src="${escapeAttr(t.favIconUrl || "")}" alt="" />
+            <a href="${escapeAttr(t.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(tabTitle)}">${escape(tabTitle)}</a>
+            ${moveControl}
+            <button class="tab-close" title="Close this tab" aria-label="Close tab: ${escapeAttr(tabTitle)}" data-action="close-tab" data-tab-id="${escapeAttr(t.id)}">×</button>
+          </li>
+        `;
+      })
+      .join("")
+    : `<li class="group-empty">No tabs assigned.</li>`;
 
   const statusBadge = g.status
     ? `<span class="group-status-badge">${escape(statusLabel(g.status, g))}</span>`
@@ -607,10 +670,13 @@ function buildGroupNode(g, idx) {
 
   div.innerHTML = `
     <div class="group-head">
-      <div class="group-label">${escape(g.label || "Group")}</div>
+      <div class="group-label">
+        <label class="sr-only" for="${labelId}">Suggested group label</label>
+        <input id="${labelId}" class="group-label-input" type="text" value="${escapeAttr(labelValue)}" data-action="edit-label" data-original-label="${escapeAttr(labelValue)}" aria-label="Edit group label: ${escapeAttr(labelValue)}" ${canEdit ? "" : "disabled"} />
+      </div>
       <div class="group-meta">
         ${statusBadge}
-        <span class="group-tab-count">${g.tabs.length} tabs</span>
+        <span class="group-tab-count">${tabs.length} ${plural(tabs.length, "tab")}</span>
       </div>
     </div>
     <ul class="group-summary">${summary}</ul>
@@ -631,12 +697,151 @@ function buildGroupNode(g, idx) {
     });
   });
 
-  if (g.status) {
+  div.querySelectorAll("select[data-action='move-tab']").forEach(select => {
+    select.addEventListener("change", e => {
+      e.stopPropagation();
+      onGroupMembershipChange(idx, select);
+    });
+  });
+
+  div.querySelectorAll("input[data-action='edit-label']").forEach(input => {
+    input.addEventListener("input", () => onGroupLabelInput(idx, input));
+    input.addEventListener("blur", () => commitGroupLabel(idx, input));
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        input.blur();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        input.value = input.dataset.originalLabel || editableGroupLabel(g, idx);
+        g.label = input.value;
+        input.blur();
+      }
+    });
+  });
+
+  if (g.status || tabs.length === 0) {
     div.querySelectorAll(".group-actions button").forEach(b => (b.disabled = true));
   }
 
   hideBrokenFavicons(div);
   return div;
+}
+
+function onGroupLabelInput(idx, input) {
+  const g = state.lastResult?.groups?.[idx];
+  if (!g || g.status) return;
+  g.label = input.value;
+  refreshGroupMoveOptions();
+  schedulePersistEditedResult();
+}
+
+function commitGroupLabel(idx, input) {
+  const g = state.lastResult?.groups?.[idx];
+  if (!g || g.status) return;
+  const previous = input.dataset.originalLabel || "";
+  const label = input.value.trim() || `Group ${idx + 1}`;
+  g.label = label;
+  input.value = label;
+  input.dataset.originalLabel = label;
+  input.setAttribute("aria-label", `Edit group label: ${label}`);
+  refreshGroupMoveOptions();
+  schedulePersistEditedResult();
+  if (label !== previous) announceStatus(`Renamed group to "${label}".`);
+}
+
+function refreshGroupMoveOptions() {
+  const groups = state.lastResult?.groups ?? [];
+  els.groups.querySelectorAll("select[data-action='move-tab']").forEach(select => {
+    for (const option of select.options) {
+      const idx = Number(option.value);
+      if (Number.isInteger(idx) && groups[idx]) {
+        option.textContent = editableGroupLabel(groups[idx], idx);
+      }
+    }
+  });
+  els.groups.querySelectorAll("input[data-action='edit-label']").forEach(input => {
+    const idx = Number(input.closest(".group")?.dataset.idx);
+    if (Number.isInteger(idx) && groups[idx]) {
+      input.setAttribute("aria-label", `Edit group label: ${editableGroupLabel(groups[idx], idx)}`);
+    }
+  });
+}
+
+function onGroupMembershipChange(fromIdx, select) {
+  const targetIdx = Number(select.value);
+  if (!Number.isInteger(targetIdx) || targetIdx === fromIdx) return;
+  const moved = moveTabBetweenGroups(select.dataset.tabKey, targetIdx);
+  if (!moved) return;
+  renderGroups();
+  schedulePersistEditedResult();
+  hideError();
+  const movedKey = tabKey(moved.tab);
+  const targetLabel = editableGroupLabel(moved.targetGroup, targetIdx);
+  announceStatus(`Moved "${moved.tab.title || moved.tab.url || "tab"}" to "${targetLabel}".`);
+  focusFirstAvailable([
+    `.group[data-idx="${targetIdx}"] select[data-action="move-tab"][data-tab-key="${selectorAttr(movedKey)}"]`,
+    `.group[data-idx="${targetIdx}"] .group-label-input`,
+    "#apply-all",
+  ]);
+}
+
+function moveTabBetweenGroups(key, targetIdx) {
+  const groups = state.lastResult?.groups ?? [];
+  const targetGroup = groups[targetIdx];
+  if (!targetGroup || targetGroup.status) return null;
+
+  let movedTab = null;
+  for (const group of groups) {
+    if (!Array.isArray(group.tabs)) continue;
+    for (let i = group.tabs.length - 1; i >= 0; i--) {
+      if (tabKey(group.tabs[i]) !== key) continue;
+      const [tab] = group.tabs.splice(i, 1);
+      if (!movedTab) movedTab = tab;
+    }
+  }
+
+  if (!movedTab) return null;
+  targetGroup.tabs.push(movedTab);
+  return { tab: movedTab, targetGroup };
+}
+
+function onAddGroup() {
+  if (!state.lastResult) return;
+  normalizeEditedGroups({ refreshDom: false });
+  const idx = state.lastResult.groups.length;
+  const group = {
+    label: `Group ${idx + 1}`,
+    summary: [],
+    colorIndex: idx,
+    tabs: [],
+    status: null,
+  };
+  state.lastResult.groups.push(group);
+  renderGroups();
+  schedulePersistEditedResult();
+  hideError();
+  announceStatus(`Added "${group.label}".`);
+  focusFirstAvailable([`.group[data-idx="${idx}"] .group-label-input`]);
+}
+
+function schedulePersistEditedResult() {
+  if (editPersistTimer) clearTimeout(editPersistTimer);
+  editPersistTimer = setTimeout(() => {
+    persistEditedTriageResult().catch(() => {});
+  }, 150);
+}
+
+async function persistEditedTriageResult() {
+  if (!state.lastResult) return;
+  const current = await readPopupTriageState().catch(() => null);
+  if (!current || current.status !== "success") return;
+  await chrome.storage.local.set({
+    [POPUP_TRIAGE_STATE_KEY]: {
+      ...current,
+      groups: state.lastResult.groups,
+    },
+  });
 }
 
 function statusLabel(status, g) {
@@ -651,6 +856,7 @@ function statusLabel(status, g) {
 }
 
 async function onGroupAction(idx, action, tabIdAttr, btn) {
+  normalizeEditedGroups();
   const g = state.lastResult?.groups?.[idx];
   if (!g) return;
 
@@ -661,6 +867,7 @@ async function onGroupAction(idx, action, tabIdAttr, btn) {
       pruneCurrentWindowTabsById([tabId]);
       g.tabs = g.tabs.filter(t => t.id !== tabId);
       if (g.tabs.length === 0) g.status = "empty";
+      schedulePersistEditedResult();
       replaceGroupNode(idx, {
         focusSelectors: [
           `.group[data-idx="${idx}"] button[data-action="close-tab"]`,
@@ -679,6 +886,7 @@ async function onGroupAction(idx, action, tabIdAttr, btn) {
   }
 
   if (action === "notion") {
+    if (!g.tabs.length) return;
     const btn = els.groups
       .querySelector(`.group[data-idx="${idx}"] button[data-action="notion"]`);
     const groups = [g];
@@ -700,6 +908,10 @@ async function onGroupAction(idx, action, tabIdAttr, btn) {
   }
 
   if (g.status) return; // group already acted on
+  if (!g.tabs.length) {
+    showError("Add at least one tab before using this group.");
+    return;
+  }
 
   if (action === "close") {
     if (!confirm(`Close ${g.tabs.length} tabs in "${g.label}"? A recovery session will be saved first.`)) return;
@@ -738,6 +950,7 @@ async function onGroupAction(idx, action, tabIdAttr, btn) {
         if (btn) flashButton(btn, "Recoverable");
       }
     }
+    schedulePersistEditedResult();
     replaceGroupNode(idx, {
       focusSelectors: [
         `.group[data-idx="${idx}"]`,
@@ -768,9 +981,11 @@ function setGroupBusy(idx, busy) {
   if (!node) return;
   node.classList.toggle("group-busy", busy);
   node.querySelectorAll(".group-actions button").forEach(b => (b.disabled = busy));
+  node.querySelectorAll("input[data-action='edit-label'], select[data-action='move-tab']").forEach(el => (el.disabled = busy));
 }
 
 async function onApplyAll() {
+  normalizeEditedGroups();
   const groups = state.lastResult?.groups?.filter(g => !g.status && g.tabs.length > 0);
   if (!groups?.length) return;
   const hadFocus = document.activeElement === els.applyAll;
@@ -782,6 +997,7 @@ async function onApplyAll() {
     const applyResults = await applyAllAsTabGroups({ groups });
     const applySummary = summarizeApplyResults({ groups, results: applyResults });
     for (const entry of applySummary.successes) entry.group.status = "grouped";
+    schedulePersistEditedResult();
     renderGroups();
     if (applySummary.failedGroupCount) {
       showError(formatApplyFailureMessage(applySummary));
@@ -800,7 +1016,11 @@ async function onApplyAll() {
 
 async function onSaveSession() {
   if (!state.lastResult) return;
-  const { groups } = state.lastResult;
+  const groups = resultGroupsForOutput();
+  if (!groups.length) {
+    showError("Add at least one tab to save this session.");
+    return;
+  }
   const session = {
     id: `s_${Date.now()}`,
     createdAt: new Date().toISOString(),
@@ -933,13 +1153,22 @@ async function onSessionAction(action, id, btn) {
 
 function onExportMarkdown() {
   if (!state.lastResult) return;
-  const md = groupsToMarkdown(state.lastResult.groups);
+  const groups = resultGroupsForOutput();
+  if (!groups.length) {
+    showError("Add at least one tab before copying Markdown.");
+    return;
+  }
+  const md = groupsToMarkdown(groups);
   navigator.clipboard.writeText(md).then(() => flashButton(els.exportMd, "Copied"));
 }
 
 async function onExportNotion() {
   if (!state.lastResult) return;
-  const groups = state.lastResult.groups;
+  const groups = resultGroupsForOutput();
+  if (!groups.length) {
+    showError("Add at least one tab before sending to Notion.");
+    return;
+  }
   try {
     await exportSessionToNotion({
       key: notionExportKey("triage-result", notionGroupsPayload(groups)),

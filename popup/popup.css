@@ -479,10 +479,35 @@ button.small { padding: 5px 10px; font-size: 12px; }
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+}
+.group-label-input {
+  width: 100%;
+  min-width: 0;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 3px 5px;
+  font: inherit;
+  font-weight: 600;
+}
+.group-label-input:hover {
+  background: var(--bg);
+  border-color: var(--border);
+}
+.group-label-input:focus {
+  background: var(--bg);
+  border-color: var(--accent-2);
+}
+.group-label-input:disabled {
+  opacity: 1;
+  color: var(--text);
+  background: transparent;
 }
 .group-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .group-tab-count { font-size: 11px; color: var(--muted); }
@@ -520,10 +545,35 @@ button.small { padding: 5px 10px; font-size: 12px; }
 .group-tabs li {
   display: flex; gap: 6px; align-items: center;
   font-size: 12px;
+  min-width: 0;
 }
 .group-tabs .favicon { width: 12px; height: 12px; flex-shrink: 0; }
-.group-tabs a { color: var(--accent-2-strong); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.group-tabs a {
+  color: var(--accent-2-strong);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
 .group-tabs a:hover { text-decoration: underline; }
+.group-empty {
+  color: var(--muted);
+  padding: 2px 0;
+}
+.tab-move {
+  flex: 0 0 116px;
+  max-width: 38%;
+  min-width: 92px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 11px;
+}
 .tab-close {
   opacity: 0;
   background: transparent;
@@ -750,6 +800,7 @@ button.small { padding: 5px 10px; font-size: 12px; }
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
+select:focus-visible,
 .search input:focus-visible,
 [tabindex]:focus-visible {
   outline: 2px solid var(--focus-ring);
