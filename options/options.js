@@ -355,7 +355,7 @@ function setProviderUi(provider) {
   els.provider.value = provider;
   const p = PROVIDERS[provider];
   if (!p) return;
-  els.providerHelp.textContent = p.keyHelp;
+  renderSafeHelpLinks(els.providerHelp, p.keyHelp);
   els.key.placeholder = p.keyPlaceholder || "sk-...";
   els.baseUrlField.classList.toggle("hidden", !p.supportsBaseUrl);
   els.baseUrl.disabled = !p.supportsBaseUrl;
@@ -364,6 +364,63 @@ function setProviderUi(provider) {
   els.baseUrl.placeholder = p.baseUrlPlaceholder || "";
   els.baseUrlHelp.textContent = p.baseUrlHelp || "";
   if (!p.supportsBaseUrl) els.baseUrl.value = "";
+}
+
+const HELP_URL_RE = /\bhttps?:\/\/[^\s<>"']+/g;
+const TRAILING_URL_PUNCTUATION_RE = /[.,!?;:)]$/;
+
+function renderSafeHelpLinks(el, text) {
+  const value = String(text ?? "");
+  const nodes = [];
+  let cursor = 0;
+
+  for (const match of value.matchAll(HELP_URL_RE)) {
+    const rawMatch = match[0];
+    const matchStart = match.index ?? 0;
+    const { urlText, suffix } = splitTrailingUrlPunctuation(rawMatch);
+    const anchor = createSafeHelpLink(urlText);
+
+    if (!anchor) continue;
+    if (matchStart > cursor) {
+      nodes.push(document.createTextNode(value.slice(cursor, matchStart)));
+    }
+    nodes.push(anchor);
+    if (suffix) nodes.push(document.createTextNode(suffix));
+    cursor = matchStart + rawMatch.length;
+  }
+
+  if (cursor < value.length) {
+    nodes.push(document.createTextNode(value.slice(cursor)));
+  }
+
+  el.replaceChildren(...(nodes.length ? nodes : [document.createTextNode(value)]));
+}
+
+function splitTrailingUrlPunctuation(rawUrl) {
+  let urlText = rawUrl;
+  let suffix = "";
+  while (TRAILING_URL_PUNCTUATION_RE.test(urlText)) {
+    suffix = urlText.slice(-1) + suffix;
+    urlText = urlText.slice(0, -1);
+  }
+  return { urlText, suffix };
+}
+
+function createSafeHelpLink(urlText) {
+  let url;
+  try {
+    url = new URL(urlText);
+  } catch {
+    return null;
+  }
+  if (!["https:", "http:"].includes(url.protocol)) return null;
+
+  const link = document.createElement("a");
+  link.href = url.href;
+  link.textContent = urlText;
+  link.target = "_blank";
+  link.rel = "noopener";
+  return link;
 }
 
 function cleanFormText(value) {
