@@ -3,6 +3,7 @@ import {
   saveSettings,
   listSessions,
   importSessions,
+  previewSessionImport,
   getSessionLimitState,
   SESSION_LIMIT_CHOICES,
   SESSION_OVERFLOW_BLOCK_NEW,
@@ -962,7 +963,7 @@ async function onImport() {
   const { plan, apiKey, ...rest } = settingsSource;
   try {
     if (Array.isArray(parsed.sessions)) {
-      await confirmSessionImportCapacity(parsed.sessions.length, rest);
+      await confirmSessionImportCapacity(parsed.sessions, rest);
     }
     await saveSettings(rest);
     let sessionResult = null;
@@ -980,31 +981,16 @@ async function onImport() {
   }
 }
 
-async function confirmSessionImportCapacity(incomingCount, importedSettings) {
-  const current = await getSessionLimitState(0);
-  const importedLimit = Number(importedSettings.sessions?.limit);
-  const roundedLimit = Number.isFinite(importedLimit) ? Math.round(importedLimit) : current.limit;
-  const limit = SESSION_LIMIT_CHOICES.includes(roundedLimit)
-    ? roundedLimit
-    : current.limit;
-  const overflow = importedSettings.sessions?.overflow === SESSION_OVERFLOW_BLOCK_NEW
-    ? SESSION_OVERFLOW_BLOCK_NEW
-    : (importedSettings.sessions?.overflow === SESSION_OVERFLOW_DISCARD_OLDEST
-      ? SESSION_OVERFLOW_DISCARD_OLDEST
-      : current.overflow);
-  const projected = current.count + Math.max(0, Number(incomingCount) || 0);
-  const wouldBlock = overflow === SESSION_OVERFLOW_BLOCK_NEW && projected > limit;
-  const wouldDiscard = overflow === SESSION_OVERFLOW_DISCARD_OLDEST
-    ? Math.max(0, projected - limit)
-    : 0;
-  if (wouldBlock) {
-    throw new Error(`Import would exceed the saved session limit (${projected}/${limit}). Delete older sessions or change the limit before importing this backup.`);
+async function confirmSessionImportCapacity(incomingSessions, importedSettings) {
+  const preview = await previewSessionImport(incomingSessions, importedSettings);
+  if (preview.wouldBlock) {
+    throw new Error(`Import would exceed the saved session limit (${preview.projectedCount}/${preview.limit}). Delete older sessions or change the limit before importing this backup.`);
   }
-  if (!wouldDiscard) return;
-  const deleted = wouldDiscard === 1
+  if (!preview.wouldDiscard) return;
+  const deleted = preview.wouldDiscard === 1
     ? "the oldest saved session"
-    : `${wouldDiscard} oldest saved sessions`;
-  const ok = confirm(`This backup contains ${incomingCount} saved sessions. Importing it will keep your newest ${limit} sessions and delete ${deleted}. Continue?`);
+    : `${preview.wouldDiscard} oldest saved sessions`;
+  const ok = confirm(`This backup contains ${preview.imported} saved sessions. Importing it will keep your newest ${preview.limit} sessions and delete ${deleted}. Continue?`);
   if (!ok) throw new Error("Import canceled before changing saved sessions.");
 }
 
