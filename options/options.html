@@ -10,6 +10,7 @@
       <ul>
         <li><a href="#section-llm">AI</a></li>
         <li><a href="#section-appearance">Appearance</a></li>
+        <li><a href="#section-newtab">New tab</a></li>
         <li><a href="#section-plan">Plan</a></li>
         <li><a href="#section-badge">Badge</a></li>
         <li><a href="#section-auto">Auto-triage</a></li>
@@ -115,6 +116,19 @@
             <span>Dark</span>
           </label>
         </div>
+      </section>
+
+      <section class="card" id="section-newtab">
+        <h2>New tab page</h2>
+        <p class="muted">
+          Choose whether new tabs show the Tab Triage AI dashboard. When disabled, new tabs open as
+          blank pages; the popup, settings, auto-triage, and saved sessions still work.
+        </p>
+        <label class="checkbox-row">
+          <input id="newtab-enabled" type="checkbox" />
+          <span><strong>Use Tab Triage AI as my new tab page</strong></span>
+        </label>
+        <p id="newtab-status" class="status"></p>
       </section>
 
       <section class="card" id="section-plan">
