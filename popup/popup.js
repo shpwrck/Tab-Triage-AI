@@ -73,6 +73,8 @@ const els = {
   dupesSectionList: $("#dupes-section-list"),
   dupesSectionFooter: $("#dupes-section-footer"),
   dupesCloseAll: $("#dupes-close-all"),
+  srStatus: $("#sr-status"),
+  srAlert: $("#sr-alert"),
 };
 
 const state = {
@@ -88,6 +90,42 @@ const state = {
 
 let latestTabLoadId = 0;
 const removedTabIds = new Set();
+
+function announceStatus(msg) {
+  announceToLiveRegion(els.srStatus, msg);
+}
+
+function announceAlert(msg) {
+  announceToLiveRegion(els.srAlert, msg);
+}
+
+function announceToLiveRegion(region, msg) {
+  if (!region || !msg) return;
+  region.textContent = "";
+  requestAnimationFrame(() => {
+    region.textContent = msg;
+  });
+}
+
+function selectorAttr(value) {
+  return String(value ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function focusElement(el) {
+  if (!el || !el.isConnected || el.disabled || el.closest?.(".hidden")) return false;
+  const canFocus = el.matches?.("button, a[href], input, textarea, select, [tabindex]");
+  if (!canFocus && !el.hasAttribute("tabindex")) el.tabIndex = -1;
+  el.focus({ preventScroll: true });
+  return document.activeElement === el;
+}
+
+function focusFirstAvailable(selectors, root = document) {
+  for (const selector of selectors.filter(Boolean)) {
+    const el = root.querySelector(selector);
+    if (focusElement(el)) return true;
+  }
+  return false;
+}
 
 async function init() {
   await applyStoredTheme();
@@ -200,6 +238,9 @@ function onTabRemoved(tabId) {
 }
 
 function renderTabs() {
+  const focusedTabId = els.tabList.contains(document.activeElement)
+    ? document.activeElement?.dataset?.id
+    : "";
   els.tabList.innerHTML = "";
   const cappedTabIds = cappedSelectedTabIds();
   for (const t of state.tabs) {
@@ -234,6 +275,13 @@ function renderTabs() {
   hideBrokenFavicons(els.tabList);
   renderPickerSummary();
   syncSelectAll();
+  if (focusedTabId) {
+    focusFirstAvailable([
+      `#tab-picker-${selectorAttr(focusedTabId)}`,
+      "#tab-list input[type='checkbox']",
+      "#select-all",
+    ]);
+  }
 }
 
 function selectedTabs() {
@@ -422,7 +470,7 @@ async function applyPopupTriageState(nextState) {
     state.lastResult = { groups: nextState.groups ?? [] };
     hideError();
     hideStatusNotice();
-    showResult();
+    showResult({ focusResultActions: true });
     showResultNotice(nextState.notice);
     await refreshQuotaBadge();
     return;
@@ -478,13 +526,14 @@ function waitForPopupTriageCompletion(jobId) {
   });
 }
 
-function showResult() {
+function showResult({ focusResultActions = false } = {}) {
   els.picker.classList.add("hidden");
   els.sessions.classList.add("hidden");
   els.staleSection.classList.add("hidden");
   els.dupesSection.classList.add("hidden");
   els.result.classList.remove("hidden");
   renderGroups();
+  if (focusResultActions) focusElement(els.applyAll);
 }
 
 function showPicker() {
@@ -524,6 +573,7 @@ function buildGroupNode(g, idx) {
   const div = document.createElement("div");
   div.className = "group";
   div.dataset.idx = String(idx);
+  div.tabIndex = -1;
   if (g.status) div.classList.add(`group-status-${g.status}`);
 
   const summary = (g.summary ?? []).map(b => `<li>${escape(b)}</li>`).join("");
@@ -599,7 +649,17 @@ async function onGroupAction(idx, action, tabIdAttr, btn) {
       pruneCurrentWindowTabsById([tabId]);
       g.tabs = g.tabs.filter(t => t.id !== tabId);
       if (g.tabs.length === 0) g.status = "empty";
-      replaceGroupNode(idx);
+      replaceGroupNode(idx, {
+        focusSelectors: [
+          `.group[data-idx="${idx}"] button[data-action="close-tab"]`,
+          `.group[data-idx="${idx}"] .group-actions button:not(:disabled)`,
+          `.group[data-idx="${idx}"]`,
+          `#apply-all`,
+        ],
+      });
+      announceStatus(g.tabs.length
+        ? `Closed tab from "${g.label || "group"}". ${g.tabs.length} ${plural(g.tabs.length, "tab")} left.`
+        : `Closed the last tab from "${g.label || "group"}".`);
     } catch (e) {
       showError(`Couldn't close tab: ${e.message ?? e}`);
     }
@@ -665,18 +725,29 @@ async function onGroupAction(idx, action, tabIdAttr, btn) {
         if (btn) flashButton(btn, "Recoverable");
       }
     }
-    replaceGroupNode(idx);
+    replaceGroupNode(idx, {
+      focusSelectors: [
+        `.group[data-idx="${idx}"]`,
+        `.group[data-idx="${idx + 1}"] .group-actions button:not(:disabled)`,
+        `.group[data-idx="${Math.max(0, idx - 1)}"] .group-actions button:not(:disabled)`,
+        "#apply-all",
+        "#back",
+      ],
+    });
+    if (action !== "close" || !g.recoverySessionId) announceStatus(statusLabel(g.status, g));
   } catch (e) {
     showError(`Action failed: ${e.message ?? e}`);
     setGroupBusy(idx, false);
+    if (btn) focusElement(btn);
   }
 }
 
-function replaceGroupNode(idx) {
+function replaceGroupNode(idx, { focusSelectors = [] } = {}) {
   const node = els.groups.querySelector(`.group[data-idx="${idx}"]`);
   if (!node) return;
   const next = buildGroupNode(state.lastResult.groups[idx], idx);
   node.replaceWith(next);
+  focusFirstAvailable(focusSelectors);
 }
 
 function setGroupBusy(idx, busy) {
@@ -689,21 +760,28 @@ function setGroupBusy(idx, busy) {
 async function onApplyAll() {
   const groups = state.lastResult?.groups?.filter(g => !g.status && g.tabs.length > 0);
   if (!groups?.length) return;
+  const hadFocus = document.activeElement === els.applyAll;
   els.applyAll.disabled = true;
   const original = els.applyAll.textContent;
   els.applyAll.textContent = "Applying…";
+  announceStatus("Applying tab groups.");
   try {
     const applyResults = await applyAllAsTabGroups({ groups });
     const applySummary = summarizeApplyResults({ groups, results: applyResults });
     for (const entry of applySummary.successes) entry.group.status = "grouped";
     renderGroups();
-    if (applySummary.failedGroupCount) showError(formatApplyFailureMessage(applySummary));
-    else hideError();
+    if (applySummary.failedGroupCount) {
+      showError(formatApplyFailureMessage(applySummary));
+    } else {
+      hideError();
+      announceStatus(`Applied ${applySummary.groupedGroupCount} ${plural(applySummary.groupedGroupCount, "group")} as Chrome tab groups.`);
+    }
   } catch (e) {
     showError(`Couldn't apply all: ${e.message ?? e}`);
   } finally {
     els.applyAll.disabled = false;
     els.applyAll.textContent = original;
+    if (hadFocus) focusElement(els.applyAll);
   }
 }
 
@@ -740,10 +818,11 @@ function defaultSessionTitle(groups) {
   return top.label;
 }
 
-async function renderSessions() {
+async function renderSessions({ focusSelectors = [] } = {}) {
   const sessions = await listSessions();
   if (!sessions.length) {
     els.sessionList.innerHTML = `<li class="muted" style="border:none;background:none;padding:8px 0;">No saved sessions yet.</li>`;
+    focusFirstAvailable(focusSelectors.length ? focusSelectors : ["#sessions-back", "#show-sessions"]);
     return;
   }
   els.sessionList.innerHTML = "";
@@ -768,11 +847,12 @@ async function renderSessions() {
     els.sessionList.appendChild(li);
   }
   els.sessionList.querySelectorAll("button[data-action]").forEach(btn => {
-    btn.addEventListener("click", () => onSessionAction(btn.dataset.action, btn.dataset.id));
+    btn.addEventListener("click", () => onSessionAction(btn.dataset.action, btn.dataset.id, btn));
   });
+  focusFirstAvailable(focusSelectors);
 }
 
-async function onSessionAction(action, id) {
+async function onSessionAction(action, id, btn) {
   const sessions = await listSessions();
   const s = sessions.find(x => x.id === id);
   if (!s) return;
@@ -792,7 +872,14 @@ async function onSessionAction(action, id) {
   } else if (action === "delete") {
     if (confirm("Delete this session?")) {
       await deleteSession(id);
-      await renderSessions();
+      await renderSessions({
+        focusSelectors: [
+          `button[data-id="${selectorAttr(id)}"]`,
+          "#session-list button[data-action]",
+          "#sessions-back",
+        ],
+      });
+      announceStatus(`Deleted saved session "${s.title}".`);
     }
   } else if (action === "rename") {
     const nextTitle = prompt("Rename saved session", s.title ?? "");
@@ -803,13 +890,20 @@ async function onSessionAction(action, id) {
       return;
     }
     await updateSession(id, { title });
-    await renderSessions();
+    await renderSessions({
+      focusSelectors: [
+        `button[data-action="rename"][data-id="${selectorAttr(id)}"]`,
+        `button[data-id="${selectorAttr(id)}"]`,
+        "#session-list button[data-action]",
+      ],
+    });
     hideError();
     showStatusNotice(`Renamed saved session to "${title}".`);
   } else if (action === "copy") {
     await navigator.clipboard.writeText(sessionToMarkdown(s));
+    announceStatus(`Copied "${s.title}" as Markdown.`);
   } else if (action === "notion") {
-    const btn = els.sessionList
+    btn = btn || els.sessionList
       .querySelector(`button[data-action="notion"][data-id="${id}"]`);
     try {
       await flashAsyncButton(btn, async () => {
@@ -893,6 +987,7 @@ function sessionTabCount(session) {
 function setBusy(busy) {
   els.triage.disabled = busy;
   els.triage.innerHTML = busy ? `<span class="spinner"></span>Triaging…` : `Triage tabs`;
+  if (busy) announceStatus("Triaging tabs.");
 }
 
 function showError(msg, details = "") {
@@ -901,6 +996,7 @@ function showError(msg, details = "") {
   els.error.textContent = msg;
   els.error.title = details;
   els.error.classList.remove("hidden");
+  announceAlert(msg);
 }
 function hideError() {
   els.error.classList.add("hidden");
@@ -915,6 +1011,7 @@ function showStatusNotice(msg) {
   }
   els.statusNotice.textContent = msg;
   els.statusNotice.classList.remove("hidden");
+  announceStatus(msg);
 }
 
 function hideStatusNotice() {
@@ -929,6 +1026,7 @@ function showResultNotice(msg) {
   }
   els.resultNotice.textContent = msg;
   els.resultNotice.classList.remove("hidden");
+  announceStatus(msg);
 }
 
 function hideResultNotice() {
@@ -939,6 +1037,7 @@ function hideResultNotice() {
 function flashButton(btn, text) {
   const original = btn.textContent;
   btn.textContent = text;
+  announceStatus(text);
   setTimeout(() => (btn.textContent = original), 1400);
 }
 
@@ -951,25 +1050,31 @@ function flashButton(btn, text) {
 // "Set up first" precondition failures right on the button.
 async function flashAsyncButton(btn, action, { sendingLabel = "Sending…", okLabel = "Sent", failLabel = "Failed" } = {}) {
   if (!btn) return action();
+  const hadFocus = document.activeElement === btn;
   const originalText = btn.textContent;
   const originalTitle = btn.title;
   btn.disabled = true;
   btn.textContent = sendingLabel;
+  announceStatus(sendingLabel);
   try {
     await action();
     btn.textContent = okLabel;
+    announceStatus(okLabel);
     setTimeout(() => {
       btn.textContent = originalText;
       btn.title = originalTitle;
       btn.disabled = false;
+      if (hadFocus) focusElement(btn);
     }, 1800);
   } catch (e) {
     btn.textContent = e?.shortLabel || failLabel;
     btn.title = e?.message ?? String(e);
+    announceAlert(e?.message ?? String(e));
     setTimeout(() => {
       btn.textContent = originalText;
       btn.title = originalTitle;
       btn.disabled = false;
+      if (hadFocus) focusElement(btn);
     }, 2800);
     throw e;
   }
@@ -1309,13 +1414,14 @@ function setStaleBulkButtonState({ actionTabs, protectedTabs }) {
   els.staleArchiveAll.textContent = hasProtected ? `Archive safe · ${count}` : `Archive all · ${count}`;
 }
 
-async function renderStaleTabs() {
+async function renderStaleTabs({ focusSelectors = [] } = {}) {
   const { staleTabs: stale, actionTabs, protectedTabs, hours, now } = await loadStaleTabs();
 
   state.staleTabs = stale;
 
   if (!stale.length) {
     els.staleSection.classList.add("hidden");
+    focusFirstAvailable(focusSelectors.length ? focusSelectors : []);
     return;
   }
 
@@ -1343,7 +1449,18 @@ async function renderStaleTabs() {
       try {
         await chrome.tabs.remove(id);
         pruneCurrentWindowTabsById([id]);
-        await Promise.all([renderStaleTabs(), renderDupeTabs()]);
+        await Promise.all([
+          renderStaleTabs({
+            focusSelectors: [
+              "#stale-section-list .tab-close",
+              "#stale-close-all:not(:disabled)",
+              "#stale-archive-all:not(:disabled)",
+              "#show-sessions",
+            ],
+          }),
+          renderDupeTabs(),
+        ]);
+        announceStatus(`Closed stale tab "${t.title || t.url}".`);
       } catch (err) {
         showError(`Couldn't close tab: ${err.message ?? err}`);
       }
@@ -1351,9 +1468,10 @@ async function renderStaleTabs() {
     els.staleSectionList.appendChild(li);
   }
   hideBrokenFavicons(els.staleSectionList);
+  focusFirstAvailable(focusSelectors);
 }
 
-async function renderDupeTabs() {
+async function renderDupeTabs({ focusSelectors = [] } = {}) {
   const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
   const { duplicates, totalRedundant } = computeDuplicates(tabs);
 
@@ -1361,6 +1479,7 @@ async function renderDupeTabs() {
 
   if (!duplicates.length) {
     els.dupesSection.classList.add("hidden");
+    focusFirstAvailable(focusSelectors.length ? focusSelectors : []);
     return;
   }
 
@@ -1393,6 +1512,7 @@ async function renderDupeTabs() {
     els.dupesSectionList.appendChild(li);
   }
   hideBrokenFavicons(els.dupesSectionList);
+  focusFirstAvailable(focusSelectors);
 }
 
 async function onDupeRowAction(action, dataset, btn) {
@@ -1428,7 +1548,16 @@ async function onDupeRowAction(action, dataset, btn) {
         pruneCurrentWindowTabsById(ids);
         showStatusNotice(closeRecoveryMessage(recovery));
       }, { sendingLabel: "Saving…", okLabel: "Recoverable" });
-      await Promise.all([renderStaleTabs(), renderDupeTabs()]);
+      await Promise.all([
+        renderStaleTabs(),
+        renderDupeTabs({
+          focusSelectors: [
+            "#dupes-section-list button[data-action='close-dupes']",
+            "#dupes-close-all:not(:disabled)",
+            "#show-sessions",
+          ],
+        }),
+      ]);
     } catch (e) {
       showError(`Couldn't close duplicates: ${e.message ?? e}`);
     }
@@ -1464,7 +1593,16 @@ async function onCloseAllStale() {
       pruneCurrentWindowTabsById(ids);
       showStatusNotice(closeRecoveryMessage(recovery));
     }, { sendingLabel: "Saving…", okLabel: "Recoverable" });
-    await Promise.all([renderStaleTabs(), renderDupeTabs()]);
+    await Promise.all([
+      renderStaleTabs({
+        focusSelectors: [
+          "#stale-close-all:not(:disabled)",
+          "#stale-archive-all:not(:disabled)",
+          "#show-sessions",
+        ],
+      }),
+      renderDupeTabs(),
+    ]);
   } catch (e) {
     showError(`Couldn't close stale tabs: ${e.message ?? e}`);
   }
@@ -1503,7 +1641,17 @@ async function onArchiveAllStale() {
     flashButton(els.staleArchiveAll, protectedTabs.length ? "Archived safe" : "Archived");
     const notice = sessionLimitNotice(saveResult);
     if (notice) showStatusNotice(notice);
-    await Promise.all([renderStaleTabs(), renderDupeTabs()]);
+    announceStatus(`Archived ${actionTabs.length} stale ${plural(actionTabs.length, "tab")}.`);
+    await Promise.all([
+      renderStaleTabs({
+        focusSelectors: [
+          "#stale-archive-all:not(:disabled)",
+          "#stale-close-all:not(:disabled)",
+          "#show-sessions",
+        ],
+      }),
+      renderDupeTabs(),
+    ]);
   } catch (e) {
     showError(`Couldn't archive stale tabs: ${e.message ?? e}`);
   }
@@ -1525,7 +1673,16 @@ async function onCloseAllDupes() {
       pruneCurrentWindowTabsById(ids);
       showStatusNotice(closeRecoveryMessage(recovery));
     }, { sendingLabel: "Saving…", okLabel: "Recoverable" });
-    await Promise.all([renderStaleTabs(), renderDupeTabs()]);
+    await Promise.all([
+      renderStaleTabs(),
+      renderDupeTabs({
+        focusSelectors: [
+          "#dupes-close-all:not(:disabled)",
+          "#dupes-section-list button[data-action='close-dupes']",
+          "#show-sessions",
+        ],
+      }),
+    ]);
   } catch (e) {
     showError(`Couldn't close duplicates: ${e.message ?? e}`);
   }

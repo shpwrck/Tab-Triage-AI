@@ -70,7 +70,7 @@
         <div class="actions">
           <button id="save" class="primary">Save</button>
           <button id="test" class="ghost">Test connection</button>
-          <span id="status" class="status"></span>
+          <span id="status" class="status" role="status" aria-live="polite" aria-atomic="true"></span>
         </div>
 
         <details class="disclosure">
@@ -128,12 +128,12 @@
           <input id="newtab-enabled" type="checkbox" />
           <span><strong>Use Tab Triage AI as my new tab page</strong></span>
         </label>
-        <p id="newtab-status" class="status"></p>
+        <p id="newtab-status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
       </section>
 
       <section class="card" id="section-plan">
         <h2>Plan</h2>
-        <p id="plan-status" class="muted">Loading plan…</p>
+        <p id="plan-status" class="muted" role="status" aria-live="polite" aria-atomic="true">Loading plan…</p>
         <p>
           <strong>Free:</strong> 5 triages per week, up to 10 tabs per triage.<br />
           <strong id="lifetime-headline">Lifetime · one-time payment:</strong> unlimited triages, no tab cap, dark mode, custom stale intervals, settings and sessions backup, and Notion export. No subscription, no renewals — buy once, keep forever.
@@ -146,7 +146,7 @@
           <input id="waitlist-email" type="email" placeholder="you@example.com" />
           <button id="waitlist" class="ghost">Join waitlist</button>
         </div>
-        <p id="waitlist-status" class="status"></p>
+        <p id="waitlist-status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
       </section>
 
       <section class="card" id="section-badge">
@@ -184,7 +184,7 @@
             </div>
             <span class="field-hint" id="badge-threshold-custom-hint">Lifetime perk: set any custom interval.</span>
           </div>
-          <p id="badge-status" class="status" style="margin-top:8px;"></p>
+          <p id="badge-status" class="status" style="margin-top:8px;" role="status" aria-live="polite" aria-atomic="true"></p>
         </div>
 
         <label class="checkbox-row" style="margin-top:14px;">
@@ -250,7 +250,7 @@
             <button id="pause-1h" class="ghost">Pause for 1 hour</button>
             <button id="pause-til-tomorrow" class="ghost">Pause until tomorrow</button>
             <button id="resume" class="ghost hidden">Resume</button>
-            <span id="auto-status" class="status"></span>
+            <span id="auto-status" class="status" role="status" aria-live="polite" aria-atomic="true"></span>
           </div>
         </div>
       </section>
@@ -283,7 +283,7 @@
         <div class="actions">
           <button id="notion-save" class="primary">Save</button>
           <button id="notion-test" class="ghost">Test connection</button>
-          <span id="notion-status" class="status"></span>
+          <span id="notion-status" class="status" role="status" aria-live="polite" aria-atomic="true"></span>
         </div>
       </section>
 
@@ -298,7 +298,7 @@
           <input id="sync-enabled" type="checkbox" />
           <span><strong>Sync saved sessions across my Chrome profile</strong></span>
         </label>
-        <p id="sync-status" class="status"></p>
+        <p id="sync-status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
         <p class="muted" style="margin-top:8px; font-size:12px;">
           Sessions larger than ~8 KB (rare; a 50-tab session is around 5 KB) stay local-only.
           Disabling sync also clears Tab Triage AI's keys from the sync silo.
@@ -327,13 +327,13 @@
               <span class="field-hint">Popup and dashboard saves explain this before acting.</span>
             </label>
           </div>
-          <p id="session-limit-status" class="status"></p>
+          <p id="session-limit-status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
         </div>
         <div class="actions">
           <button id="export-settings" class="ghost">Export backup</button>
           <button id="import-settings" class="ghost">Import backup</button>
           <input id="import-file" type="file" accept=".json" style="display:none;" />
-          <span id="data-status" class="status"></span>
+          <span id="data-status" class="status" role="status" aria-live="polite" aria-atomic="true"></span>
         </div>
       </section>
 
@@ -346,6 +346,8 @@
         </ul>
       </section>
     </main>
+    <div id="sr-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div id="sr-alert" class="sr-only" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
     <script type="module" src="options.js"></script>
   </body>

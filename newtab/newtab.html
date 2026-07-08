@@ -29,7 +29,7 @@
             <span class="stat-label">saved sessions</span>
           </div>
         </div>
-        <div class="plan-strip" id="plan-strip" aria-live="polite">
+        <div class="plan-strip" id="plan-strip" role="status" aria-live="polite" aria-atomic="true">
           <div class="plan-metric">
             <span class="plan-label">Plan</span>
             <strong id="plan-name">Checking plan</strong>
@@ -53,7 +53,7 @@
           <button id="clear-history" class="ghost">Clear history</button>
           <button id="open-settings" class="ghost">Settings</button>
         </div>
-        <p id="hero-status" class="status muted"></p>
+        <p id="hero-status" class="status muted" role="status" aria-live="polite" aria-atomic="true"></p>
       </header>
 
       <section class="card setup-card hidden" id="setup-card">
@@ -72,7 +72,7 @@
           <h2>Background status</h2>
           <span class="muted" id="background-status-meta"></span>
         </div>
-        <ul id="background-status-list" class="background-status-list"></ul>
+        <ul id="background-status-list" class="background-status-list" aria-live="polite" aria-atomic="true"></ul>
       </section>
 
       <section class="card" id="latest-card">
@@ -133,6 +133,8 @@
           <p class="muted">No saved sessions yet. Archive a group from the popup to keep it for later.</p>
         </div>
       </section>
+      <div id="sr-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div id="sr-alert" class="sr-only" role="alert" aria-live="assertive" aria-atomic="true"></div>
     </main>
 
     <script type="module" src="newtab.js"></script>
