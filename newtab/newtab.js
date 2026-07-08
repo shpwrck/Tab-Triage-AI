@@ -6,6 +6,7 @@ import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/not
 import { setTriageRunning, formatThresholdLabel } from "../lib/badge.js";
 import { applyStoredTheme, watchThemeChanges } from "../lib/theme.js";
 import { runQuotaLimitedTriage, TriageQuotaError } from "../lib/triage_quota.js";
+import { getStaleTabs, isTriageEligibleTab, splitStaleBulkActionTabs, staleThresholdMs } from "../lib/tab_policy.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -166,11 +167,9 @@ async function renderStats() {
   els.statOpen.textContent = tabs.length;
 
   const hours = settings.badge?.thresholdHours ?? 24;
-  const thresholdMs = hours * 60 * 60 * 1000;
+  const thresholdMs = staleThresholdMs(hours);
   const now = Date.now();
-  const stale = tabs.filter(
-    t => typeof t.lastAccessed === "number" && now - t.lastAccessed >= thresholdMs,
-  );
+  const stale = getStaleTabs(tabs, { now, thresholdMs });
   els.statStale.textContent = stale.length;
   els.statStaleLabel.textContent = `stale (${formatThresholdLabel(hours)})`;
 
@@ -252,17 +251,34 @@ async function renderDuplicates() {
   hideBrokenFavicons(els.dupesList);
 }
 
-async function renderStale() {
+async function loadStaleTabs() {
   const [tabs, settings] = await Promise.all([
     chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }),
     getSettings(),
   ]);
   const hours = settings.badge?.thresholdHours ?? 24;
-  const thresholdMs = hours * 60 * 60 * 1000;
+  const thresholdMs = staleThresholdMs(hours);
   const now = Date.now();
-  const stale = tabs
-    .filter(t => typeof t.lastAccessed === "number" && now - t.lastAccessed >= thresholdMs && !t.pinned)
-    .sort((a, b) => (a.lastAccessed ?? 0) - (b.lastAccessed ?? 0));
+  const { staleTabs, actionTabs, protectedTabs } = splitStaleBulkActionTabs(tabs, { now, thresholdMs });
+  return { staleTabs, actionTabs, protectedTabs, hours, now };
+}
+
+function protectedStaleNote(count) {
+  if (!count) return "";
+  return ` ${count} active or audible stale tab${count === 1 ? "" : "s"} will stay open.`;
+}
+
+function setStaleBulkButtonState({ actionTabs, protectedTabs }) {
+  const hasProtected = protectedTabs.length > 0;
+  const count = hasProtected ? actionTabs.length : state.staleTabs.length;
+  els.closeAllStale.disabled = actionTabs.length === 0;
+  els.archiveAllStale.disabled = actionTabs.length === 0;
+  els.closeAllStale.textContent = hasProtected ? `Close safe · ${count}` : `Close all · ${count}`;
+  els.archiveAllStale.textContent = hasProtected ? `Archive safe · ${count}` : `Archive all · ${count}`;
+}
+
+async function renderStale() {
+  const { staleTabs: stale, actionTabs, protectedTabs, hours, now } = await loadStaleTabs();
 
   state.staleTabs = stale;
   els.staleHelp.textContent = `Tabs you haven't activated in ${formatThresholdLabel(hours)}. Pinned tabs are excluded.`;
@@ -276,8 +292,7 @@ async function renderStale() {
   }
   els.staleEmpty.classList.add("hidden");
   els.staleFooter.classList.remove("hidden");
-  els.archiveAllStale.textContent = `Archive all · ${stale.length}`;
-  els.closeAllStale.textContent = `Close all · ${stale.length}`;
+  setStaleBulkButtonState({ actionTabs, protectedTabs });
 
   els.staleList.innerHTML = "";
   for (const t of stale) {
@@ -307,12 +322,18 @@ async function renderStale() {
 }
 
 async function onCloseAllStale() {
-  const stale = state.staleTabs;
-  if (!stale?.length) return;
-  if (!confirm(`Close ${stale.length} stale tab${stale.length === 1 ? "" : "s"} without saving?`)) return;
+  const { staleTabs, actionTabs, protectedTabs } = await loadStaleTabs();
+  if (!staleTabs.length) return;
+  if (!actionTabs.length) {
+    setHeroStatus("Active or audible stale tabs need to be closed one at a time.", "err");
+    await renderStale();
+    await renderStats();
+    return;
+  }
+  if (!confirm(`Close ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"} without saving?${protectedStaleNote(protectedTabs.length)}`)) return;
   try {
-    await chrome.tabs.remove(stale.map(t => t.id));
-    setHeroStatus(`Closed ${stale.length} stale tab${stale.length === 1 ? "" : "s"}.`, "ok");
+    await chrome.tabs.remove(actionTabs.map(t => t.id));
+    setHeroStatus(`Closed ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"}.`, "ok");
     await renderStale();
     await renderStats();
   } catch (e) {
@@ -321,10 +342,14 @@ async function onCloseAllStale() {
 }
 
 async function onArchiveAllStale() {
-  const stale = state.staleTabs;
-  if (!stale?.length) return;
-  const settings = await getSettings();
-  const hours = settings.badge?.thresholdHours ?? 24;
+  const { staleTabs, actionTabs, protectedTabs, hours } = await loadStaleTabs();
+  if (!staleTabs.length) return;
+  if (!actionTabs.length) {
+    setHeroStatus("Active or audible stale tabs are protected from bulk archive.", "err");
+    await renderStale();
+    await renderStats();
+    return;
+  }
   const label = formatThresholdLabel(hours);
   const session = {
     id: `s_${Date.now()}`,
@@ -335,18 +360,19 @@ async function onArchiveAllStale() {
         label: `Stale tabs (${label})`,
         emoji: "",
         summary: [
-          `${stale.length} tab${stale.length === 1 ? "" : "s"} not activated in ${label}`,
+          `${actionTabs.length} tab${actionTabs.length === 1 ? "" : "s"} not activated in ${label}`,
           "Captured from the new-tab dashboard",
           "Restore via Saved sessions to revisit",
         ],
-        tabs: stale.map(t => ({ title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
+        tabs: actionTabs.map(t => ({ title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
       },
     ],
   };
   await saveSession(session);
   try {
-    await chrome.tabs.remove(stale.map(t => t.id));
-    setHeroStatus(`Archived ${stale.length} stale tab${stale.length === 1 ? "" : "s"} — recoverable from Saved sessions.`, "ok");
+    await chrome.tabs.remove(actionTabs.map(t => t.id));
+    const note = protectedTabs.length ? ` ${protectedStaleNote(protectedTabs.length).trim()}` : "";
+    setHeroStatus(`Archived ${actionTabs.length} stale tab${actionTabs.length === 1 ? "" : "s"} — recoverable from Saved sessions.${note}`, "ok");
     await renderStale();
     await renderStats();
     await renderSessions();
@@ -699,9 +725,9 @@ async function onTriageNow() {
     setHeroStatus("Couldn't find a focused window.", "err");
     return;
   }
-  // Reassess all real-URL, non-pinned tabs — grouped tabs included.
+  // Reassess all triage-eligible tabs — grouped tabs included.
   const tabs = await chrome.tabs.query({ windowId: win.id });
-  const candidates = tabs.filter(t => t.url && /^https?:/.test(t.url) && !t.pinned);
+  const candidates = tabs.filter(isTriageEligibleTab);
   if (candidates.length < 2) {
     setHeroStatus("Need at least 2 tabs to triage.", "err");
     return;
