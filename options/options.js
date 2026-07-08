@@ -477,6 +477,7 @@ async function initBadge(settings) {
   const fresh = await getSettings();
   const isLifetime = fresh.plan === "lifetime";
   const cfg = fresh.badge;
+  let currentThresholdHours = cfg.thresholdHours;
 
   els.badgeEnabled.checked = !!cfg.enabled;
   els.badgeConfig.classList.toggle("hidden", !cfg.enabled);
@@ -501,20 +502,17 @@ async function initBadge(settings) {
   els.badgeThreshold.addEventListener("change", async () => {
     if (els.badgeThreshold.value === "custom") {
       if (!isLifetime) {
-        applyThresholdToUi(cfg.thresholdHours, false);
+        applyThresholdToUi(currentThresholdHours, false);
         els.badgeStatus.textContent = "Custom intervals are a Lifetime feature.";
         els.badgeStatus.className = "status err";
         return;
       }
-      els.badgeThresholdCustom.classList.remove("hidden");
-      const display = hoursToDisplay(cfg.thresholdHours);
-      els.badgeThresholdCustomValue.value = String(display.value);
-      els.badgeThresholdCustomUnit.value = display.unit;
-      await persistCustomThreshold();
+      applyCustomThresholdToUi(currentThresholdHours, true);
       return;
     }
     els.badgeThresholdCustom.classList.add("hidden");
-    await saveSettings({ badge: { thresholdHours: Number(els.badgeThreshold.value) } });
+    currentThresholdHours = Number(els.badgeThreshold.value);
+    await saveSettings({ badge: { thresholdHours: currentThresholdHours } });
     await refreshBadgeStatus();
   });
 
@@ -526,6 +524,7 @@ async function initBadge(settings) {
       return;
     }
     const hours = unitToHours(raw, els.badgeThresholdCustomUnit.value);
+    currentThresholdHours = hours;
     await saveSettings({ badge: { thresholdHours: hours } });
     await refreshBadgeStatus();
   }
@@ -546,6 +545,10 @@ function applyThresholdToUi(hours, isLifetime) {
   }
   // Non-preset value — show the custom inputs. If the user is on free
   // (e.g. lapsed lifetime), preserve their value but disable editing.
+  applyCustomThresholdToUi(hours, isLifetime);
+}
+
+function applyCustomThresholdToUi(hours, isLifetime) {
   els.badgeThreshold.value = "custom";
   els.badgeThresholdCustom.classList.remove("hidden");
   const display = hoursToDisplay(hours);
