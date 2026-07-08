@@ -22,6 +22,11 @@ installBadge();
 installSleepStale();
 installSessionSync();
 
+chrome.runtime.onInstalled.addListener(details => {
+  if (details.reason !== "install") return;
+  openOnboardingSettings().catch(() => {});
+});
+
 // Settings changes from the options page should refresh the badge right
 // away so the user sees their threshold/toggle change take effect.
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -62,6 +67,14 @@ chrome.commands.onCommand.addListener(async cmd => {
     }
   }
 });
+
+async function openOnboardingSettings() {
+  try {
+    await chrome.runtime.openOptionsPage();
+  } catch {
+    await chrome.tabs.create({ url: chrome.runtime.getURL("options/options.html") });
+  }
+}
 
 function formatManualTriageNotification({ groups, candidates, totalCandidates, cap, applySummary }) {
   if (!groups?.length) {

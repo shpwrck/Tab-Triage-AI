@@ -11,6 +11,8 @@ const $ = sel => document.querySelector(sel);
 
 const state = {
   cache: null,
+  missingApiKey: false,
+  triageRunning: false,
   staleTabs: [],
   pendingNoteSaves: new Map(),
   noteSaveTimers: new Map(),
@@ -27,6 +29,8 @@ const els = {
   triageNow: $("#triage-now"),
   clearHistory: $("#clear-history"),
   openSettings: $("#open-settings"),
+  setupCard: $("#setup-card"),
+  setupOpenSettings: $("#setup-open-settings"),
   heroStatus: $("#hero-status"),
   latestMeta: $("#latest-meta"),
   latestBody: $("#latest-body"),
@@ -50,16 +54,25 @@ const els = {
 async function init() {
   await applyStoredTheme();
   watchThemeChanges();
-  els.openSettings.addEventListener("click", () => chrome.runtime.openOptionsPage());
+  els.openSettings.addEventListener("click", openSettings);
+  els.setupOpenSettings.addEventListener("click", openSettings);
   els.triageNow.addEventListener("click", onTriageNow);
   els.clearHistory.addEventListener("click", onClearHistory);
   els.closeAllDupes.addEventListener("click", onCloseAllDuplicates);
   els.archiveAllStale.addEventListener("click", onArchiveAllStale);
   els.closeAllStale.addEventListener("click", onCloseAllStale);
-  await Promise.all([renderStats(), renderLatest(), renderStale(), renderDuplicates(), renderSessions()]);
+  await Promise.all([
+    renderSetupState(),
+    renderStats(),
+    renderLatest(),
+    renderStale(),
+    renderDuplicates(),
+    renderSessions(),
+  ]);
   // Live-update when the auto-triage or popup writes a new cache.
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
+    if (changes.tt_settings) renderSetupState().catch(() => {});
     if (changes.tt_last_triage) renderLatest().catch(() => {});
     if (changes.tt_sessions && !isOwnNoteAutosaveChange(changes.tt_sessions)) {
       renderSessions().catch(() => {});
@@ -78,6 +91,18 @@ async function init() {
     if (change.url || change.status === "complete") debouncedTabRefresh();
   });
   chrome.tabs.onActivated.addListener(debouncedTabRefresh);
+}
+
+function openSettings() {
+  chrome.runtime.openOptionsPage().catch(() => {});
+}
+
+async function renderSetupState() {
+  const settings = await getSettings();
+  state.missingApiKey = !settings.llm?.apiKey;
+  els.setupCard.classList.toggle("hidden", !state.missingApiKey);
+  els.triageNow.disabled = state.missingApiKey || state.triageRunning;
+  els.triageNow.title = state.missingApiKey ? "Add an API key in Settings first." : "";
 }
 
 function debounce(fn, ms) {
@@ -691,6 +716,7 @@ async function onTriageNow() {
   setHeroStatus("");
   const settings = await getSettings();
   if (!settings.llm?.apiKey) {
+    await renderSetupState();
     setHeroStatus("Add an API key in Settings first.", "err");
     return;
   }
@@ -707,6 +733,7 @@ async function onTriageNow() {
     return;
   }
 
+  state.triageRunning = true;
   els.triageNow.disabled = true;
   els.triageNow.textContent = "Triaging…";
   await setTriageRunning(true).catch(() => {});
@@ -748,7 +775,8 @@ async function onTriageNow() {
     }
   } finally {
     await setTriageRunning(false).catch(() => {});
-    els.triageNow.disabled = false;
+    state.triageRunning = false;
+    els.triageNow.disabled = state.missingApiKey;
     els.triageNow.textContent = "Triage now";
   }
 }

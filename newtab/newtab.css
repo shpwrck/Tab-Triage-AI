@@ -195,6 +195,30 @@ button.danger-subtle:hover { background: var(--danger-soft); }
   font-weight: 600;
 }
 
+.setup-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.setup-copy {
+  min-width: 0;
+}
+.setup-copy h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.setup-copy p {
+  margin: 0;
+  max-width: 680px;
+}
+.setup-card button {
+  flex-shrink: 0;
+}
+
 .empty {
   padding: 16px 0;
   text-align: center;
@@ -461,3 +485,13 @@ button.danger-subtle:hover { background: var(--danger-soft); }
 }
 .session-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .session-actions button { padding: 5px 12px; font-size: 12px; }
+
+@media (max-width: 640px) {
+  .setup-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .setup-card button {
+    width: 100%;
+  }
+}
