@@ -21,7 +21,7 @@ The following live in `chrome.storage.local` (your browser, this device):
 | Data | Why it exists |
 |---|---|
 | LLM provider, model, API key, optional base URL, optional custom grouping rules | Required to run triages |
-| Notion integration token + parent page ID (only if you set them up) | Required for "Send to Notion" |
+| Notion integration token + parent page URL or ID (only if you set them up) | Required for "Send to Notion" |
 | Saved sessions (titles, URLs, group labels, summaries, optional notes) | The session list you can restore from |
 | Most recent triage cache (groups + tab titles/URLs + timestamp) | Powers the new-tab dashboard without re-querying the LLM |
 | Settings: auto-triage thresholds, badge config, sleep config, sync toggle | Your preferences |

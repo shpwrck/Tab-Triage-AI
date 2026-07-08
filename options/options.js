@@ -52,6 +52,7 @@ const els = {
   syncStatus: $("#sync-status"),
   notionToken: $("#notion-token"),
   notionParent: $("#notion-parent"),
+  notionParentHint: $("#notion-parent-hint"),
   notionToggle: $("#notion-toggle"),
   notionSave: $("#notion-save"),
   notionTest: $("#notion-test"),
@@ -199,12 +200,18 @@ async function initTheme() {
 
 async function initNotion(settings) {
   els.notionToken.value = settings.notion?.token ?? "";
-  els.notionParent.value = settings.notion?.parentPageId ?? "";
+  const savedParentInput = settings.notion?.parentPageInput || settings.notion?.parentPageId || "";
+  els.notionParent.value = savedParentInput;
+  setNotionParentHint(settings.notion?.parentPageId);
 
   els.notionToggle.addEventListener("click", () => {
     const showing = els.notionToken.type === "text";
     els.notionToken.type = showing ? "password" : "text";
     els.notionToggle.textContent = showing ? "Show" : "Hide";
+  });
+
+  els.notionParent.addEventListener("input", () => {
+    setNotionParentHint();
   });
 
   els.notionSave.addEventListener("click", async () => {
@@ -215,8 +222,9 @@ async function initNotion(settings) {
       setNotionStatus("Enter both a token and a parent page.", "err");
       return;
     }
-    await saveSettings({ notion: { token, parentPageId } });
-    setNotionStatus("Saved.", "ok");
+    await saveSettings({ notion: { token, parentPageId, parentPageInput: parentRaw } });
+    setNotionParentHint(parentPageId);
+    setNotionStatus("Saved. Parent page resolved.", "ok");
   });
 
   els.notionTest.addEventListener("click", async () => {
@@ -229,6 +237,7 @@ async function initNotion(settings) {
     setNotionStatus("Testing…", "");
     try {
       await pingNotion({ token, parentPageId });
+      setNotionParentHint(parentPageId);
       setNotionStatus("Connected. The integration can see this page.", "ok");
     } catch (e) {
       const msg = e instanceof NotionError ? e.message : (e.message ?? String(e));
@@ -240,6 +249,12 @@ async function initNotion(settings) {
       );
     }
   });
+}
+
+function setNotionParentHint(parentPageId) {
+  els.notionParentHint.textContent = parentPageId
+    ? `Each export becomes a child page of this one. Resolved page ID ending ${parentPageId.slice(-8)}.`
+    : "Each export becomes a child page of this one.";
 }
 
 function setNotionStatus(msg, cls) {
