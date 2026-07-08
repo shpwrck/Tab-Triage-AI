@@ -534,34 +534,43 @@ function addAction(label, handler, variant = "ghost") {
   els.planActions.appendChild(btn);
 }
 
-async function onSave() {
+function readLlmFormSettings() {
   const provider = els.provider.value;
-  const key = els.key.value.trim();
+  const apiKey = els.key.value.trim();
   const model = els.model.value.trim() || PROVIDERS[provider]?.defaultModel || "";
   const baseUrl = els.baseUrl.value.trim();
-  const expectedPrefix = PROVIDERS[provider]?.keyPrefix;
-
-  if (!key) return setStatus("Enter a key first.", "err");
-  if (expectedPrefix && !key.startsWith(expectedPrefix)) {
-    return setStatus(`That doesn't look like a ${PROVIDERS[provider].label} key (expected prefix "${expectedPrefix}").`, "err");
-  }
   const customInstructions = els.instructions.value.trim();
-  await saveSettings({ llm: { provider, apiKey: key, model, baseUrl, customInstructions } });
+  return { provider, apiKey, model, baseUrl, customInstructions };
+}
+
+function validateLlmFormSettings(llm) {
+  if (!llm.apiKey) {
+    setStatus("Enter a key first.", "err");
+    return false;
+  }
+  const expectedPrefix = PROVIDERS[llm.provider]?.keyPrefix;
+  if (expectedPrefix && !llm.apiKey.startsWith(expectedPrefix)) {
+    setStatus(`That doesn't look like a ${PROVIDERS[llm.provider].label} key (expected prefix "${expectedPrefix}").`, "err");
+    return false;
+  }
+  return true;
+}
+
+async function onSave() {
+  const llm = readLlmFormSettings();
+  if (!validateLlmFormSettings(llm)) return;
+  await saveSettings({ llm });
   setStatus("Saved.", "ok");
 }
 
 async function onTest() {
-  const provider = els.provider.value;
-  const key = els.key.value.trim();
-  const model = els.model.value.trim() || PROVIDERS[provider]?.defaultModel;
-  const baseUrl = els.baseUrl.value.trim();
-  if (!key) return setStatus("Enter a key first.", "err");
+  const llm = readLlmFormSettings();
+  if (!validateLlmFormSettings(llm)) return;
   setStatus("Testing…", "");
   try {
-    await pingProvider({
-      settings: { llm: { provider, apiKey: key, model, baseUrl } },
-    });
-    setStatus("Connection works. You're good to triage.", "ok");
+    await pingProvider({ settings: { llm } });
+    await saveSettings({ llm });
+    setStatus("Connection works. Settings saved. You're good to triage.", "ok");
   } catch (e) {
     const msg = e instanceof LLMError ? e.message : `Network error: ${e.message ?? e}`;
     setStatus(`Failed: ${msg}`, "err");
