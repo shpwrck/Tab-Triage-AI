@@ -40,13 +40,14 @@ chrome.commands.onCommand.addListener(async cmd => {
   if (cmd === "triage-now") {
     try {
       const win = await chrome.windows.getLastFocused();
-      const { groups, candidates } = await runManualTriage({ windowId: win?.id });
+      const { groups, candidates, totalCandidates, cap } = await runManualTriage({ windowId: win?.id });
+      const scopedCount = cap?.applied ? `${candidates} of ${totalCandidates}` : String(candidates);
       chrome.notifications.create({
         type: "basic",
         iconUrl: chrome.runtime.getURL("icons/icon128.png"),
         title: "Tab Triage",
         message: groups.length
-          ? `Grouped ${candidates} tabs into ${groups.length} cluster${groups.length === 1 ? "" : "s"}.`
+          ? `Grouped ${scopedCount} tabs into ${groups.length} cluster${groups.length === 1 ? "" : "s"}.`
           : "Nothing to do — fewer than 2 candidate tabs.",
         priority: 0,
       }).catch(() => {});

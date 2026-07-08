@@ -1,13 +1,12 @@
-import { triageTabs, LLMError } from "../lib/llm/index.js";
+import { LLMError } from "../lib/llm/index.js";
 import {
   getSettings,
   checkQuota,
-  bumpQuota,
-  tabLimit,
   listSessions,
   saveSession,
   deleteSession,
 } from "../lib/storage.js";
+import { runQuotaLimitedTriage, TriageQuotaError } from "../lib/triage_quota.js";
 import { refreshPlan, openCheckout, billingEnabled } from "../lib/billing.js";
 import {
   archiveGroup,
@@ -229,54 +228,48 @@ async function onTriage() {
     showError("Add an API key in Settings first.");
     return;
   }
-  const quota = await checkQuota(settings);
-  if (!quota.allowed) {
-    showError(`Free plan: ${quota.limit} triages/week. Resets Monday. Buy lifetime for unlimited.`);
-    return;
-  }
-
   const selected = state.tabs.filter(t => t.checked);
   if (selected.length < 2) {
     showError("Select at least 2 tabs to triage.");
     return;
   }
 
-  const limit = tabLimit(settings);
-  const toSend = selected.slice(0, limit);
-  if (selected.length > limit) {
-    showError(`Free plan caps triage at ${limit} tabs. Sending the first ${limit}. Buy lifetime for unlimited.`);
-  }
-
   setBusy(true);
   await setTriageRunning(true).catch(() => {});
   try {
-    const rawGroups = await triageTabs({
+    await runQuotaLimitedTriage({
       settings,
-      tabs: toSend.map(t => ({ id: t.id, title: t.title, url: t.url })),
+      tabs: selected,
+      onPreflight: ({ cap }) => {
+        if (cap.applied) showError(cap.message);
+      },
+      afterTriage: async ({ rawGroups, tabs: toSend }) => {
+        const tabsById = indexBy(toSend, "id");
+        state.lastResult = {
+          groups: rawGroups.map(g => ({
+            label: g.label,
+            emoji: g.emoji,
+            summary: g.summary,
+            tabs: (g.tab_ids ?? [])
+              .map(id => tabsById.get(id))
+              .filter(Boolean)
+              .map(t => ({ id: t.id, windowId: t.windowId, title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
+            status: null,
+          })),
+        };
+        const win = await chrome.windows.getCurrent().catch(() => null);
+        await saveTriageCache({
+          windowId: win?.id ?? null,
+          groups: state.lastResult.groups,
+        }).catch(() => {});
+      },
     });
-    await bumpQuota();
     await refreshQuotaBadge();
-    const tabsById = indexBy(toSend, "id");
-    state.lastResult = {
-      groups: rawGroups.map(g => ({
-        label: g.label,
-        emoji: g.emoji,
-        summary: g.summary,
-        tabs: (g.tab_ids ?? [])
-          .map(id => tabsById.get(id))
-          .filter(Boolean)
-          .map(t => ({ id: t.id, windowId: t.windowId, title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
-        status: null,
-      })),
-    };
-    const win = await chrome.windows.getCurrent().catch(() => null);
-    await saveTriageCache({
-      windowId: win?.id ?? null,
-      groups: state.lastResult.groups,
-    }).catch(() => {});
     showResult();
   } catch (e) {
-    showError(e instanceof LLMError ? e.message : `Unexpected error: ${e.message ?? e}`);
+    showError(e instanceof LLMError || e instanceof TriageQuotaError
+      ? e.message
+      : `Unexpected error: ${e.message ?? e}`);
   } finally {
     await setTriageRunning(false).catch(() => {});
     setBusy(false);

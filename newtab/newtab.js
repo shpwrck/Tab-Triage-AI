@@ -1,10 +1,11 @@
 import { getSettings, listSessions, deleteSession, saveSession, updateSession } from "../lib/storage.js";
 import { readTriageCache, saveTriageCache, clearTriageCache } from "../lib/triage_cache.js";
-import { triageTabs, LLMError } from "../lib/llm/index.js";
+import { LLMError } from "../lib/llm/index.js";
 import { applyAllAsTabGroups, restoreSession } from "../lib/actions.js";
 import { sendSessionToNotion, sendTriageToNotion, NotionError } from "../lib/notion.js";
 import { setTriageRunning, formatThresholdLabel } from "../lib/badge.js";
 import { applyStoredTheme, watchThemeChanges } from "../lib/theme.js";
+import { runQuotaLimitedTriage, TriageQuotaError } from "../lib/triage_quota.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -624,30 +625,43 @@ async function onTriageNow() {
   els.triageNow.textContent = "Triaging…";
   await setTriageRunning(true).catch(() => {});
   try {
-    const raw = await triageTabs({
+    const { result } = await runQuotaLimitedTriage({
       settings,
-      tabs: candidates.map(t => ({ id: t.id, title: t.title, url: t.url })),
+      tabs: candidates,
+      onPreflight: ({ cap }) => {
+        if (cap.applied) setHeroStatus(cap.message);
+      },
+      afterTriage: async ({ rawGroups, tabs: triageCandidates, cap }) => {
+        const tabsById = new Map(triageCandidates.map(t => [t.id, t]));
+        const groups = rawGroups.map(g => {
+          const groupTabs = (g.tab_ids ?? [])
+            .map(id => tabsById.get(id))
+            .filter(Boolean);
+          return {
+            label: g.label,
+            emoji: g.emoji,
+            summary: g.summary,
+            tabs: groupTabs.map(t => ({ id: t.id, windowId: t.windowId, title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
+          };
+        });
+        await applyAllAsTabGroups({ groups });
+        await saveTriageCache({ windowId: win.id, groups });
+        await renderLatest();
+        await renderStats();
+        return { groups, cap, triagedCount: triageCandidates.length };
+      },
     });
-    const tabsById = new Map(candidates.map(t => [t.id, t]));
-    const groups = raw.map(g => {
-      const groupTabs = (g.tab_ids ?? [])
-        .map(id => tabsById.get(id))
-        .filter(Boolean);
-      return {
-        label: g.label,
-        emoji: g.emoji,
-        summary: g.summary,
-        tabs: groupTabs.map(t => ({ id: t.id, windowId: t.windowId, title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
-      };
-    });
-    await applyAllAsTabGroups({ groups });
-    await saveTriageCache({ windowId: win.id, groups });
-    await renderLatest();
-    await renderStats();
-    setHeroStatus(`Grouped ${candidates.length} tabs into ${groups.length} clusters.`, "ok");
+    const scopedCount = result.cap.applied
+      ? `${result.triagedCount} of ${result.cap.originalCount}`
+      : String(result.triagedCount);
+    setHeroStatus(`Grouped ${scopedCount} tabs into ${result.groups.length} clusters.`, "ok");
   } catch (e) {
-    const msg = e instanceof LLMError ? e.message : (e.message ?? String(e));
-    setHeroStatus(`Triage failed: ${msg}`, "err");
+    if (e instanceof TriageQuotaError) {
+      setHeroStatus(e.message, "err");
+    } else {
+      const msg = e instanceof LLMError ? e.message : (e.message ?? String(e));
+      setHeroStatus(`Triage failed: ${msg}`, "err");
+    }
   } finally {
     await setTriageRunning(false).catch(() => {});
     els.triageNow.disabled = false;
