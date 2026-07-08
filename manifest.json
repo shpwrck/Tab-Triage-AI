@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tab Triage AI",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Group open tabs by intent, summarize each group, and clean up stale and duplicate tabs. Bring your own AI provider key.",
   "homepage_url": "https://github.com/shpwrck/Tab-Triage-AI",
   "author": "Tab Triage AI",
