@@ -799,7 +799,8 @@ async function onTriageNow() {
       setHeroStatus(e.message, "err");
     } else {
       const msg = e instanceof LLMError ? e.message : (e.message ?? String(e));
-      setHeroStatus(`Triage failed: ${msg}`, "err");
+      const details = e instanceof LLMError ? e.details : "";
+      setHeroStatus(`Triage failed: ${msg}`, "err", details);
     }
   } finally {
     await setTriageRunning(false).catch(() => {});
@@ -826,8 +827,9 @@ async function onClearHistory() {
   }
 }
 
-function setHeroStatus(msg, cls = "") {
+function setHeroStatus(msg, cls = "", details = "") {
   els.heroStatus.textContent = msg;
+  els.heroStatus.title = details;
   els.heroStatus.className = `status muted ${cls}`;
 }
 
