@@ -4,7 +4,7 @@ This file is auto-loaded by Claude Code sessions for this repo. Keep it concise;
 
 ## What this is
 
-A Chrome extension (Manifest V3) that clusters open tabs by intent using a user-provided LLM, summarizes each cluster, and helps clean up stale and duplicate tabs. Bring-your-own-key model — the extension calls Anthropic, OpenAI / any OpenAI-compatible endpoint, or Google Gemini directly from the browser. No backend.
+A Chrome extension (Manifest V3) that groups open tabs by intent using a user-provided AI provider, summarizes each group, and helps clean up stale and duplicate tabs. Bring-your-own-key model — the extension calls Anthropic, OpenAI / any OpenAI-compatible endpoint, or Google Gemini directly from the browser. No backend.
 
 Monetization: $9.99 one-time lifetime via ExtensionPay. Free tier is 5 triages/week, 10 tabs per triage. Slug is `tab-triage-ai` (`lib/config.js`).
 
@@ -14,7 +14,7 @@ Monetization: $9.99 one-time lifetime via ExtensionPay. Free tier is 5 triages/w
 manifest.json            MV3 manifest
 background/              service worker (auto-triage, badge, sleep, sync, commands)
 popup/                   toolbar UI: search, picker, triage results, saved sessions
-options/                 settings: LLM provider, Notion, badge, auto-triage, sync
+options/                 settings: AI provider, Notion, badge, auto-triage, sync
 newtab/                  new-tab dashboard: stats, latest triage, stale, dupes, sessions
 lib/llm/                 provider-agnostic triage entry point + Anthropic/OpenAI/Gemini adapters
 lib/notion.js            Notion API client + markdown-to-blocks converter
@@ -86,7 +86,7 @@ To cut a release: bump `manifest.json` `version`, commit, then `git tag v<versio
 ## Publishing pipeline state
 
 Done:
-- Multi-LLM provider support + per-group custom rules
+- Multi-AI provider support + per-group custom rules
 - Auto-triage + badge + sleep stale tabs + duplicate detection + new-tab dashboard
 - Saved sessions with restore (here / new window), notes, Markdown export, Notion export, cross-Chrome sync
 - Global fuzzy search (Cmd/Ctrl-Shift-K), keyboard shortcuts for popup and Triage now
@@ -130,7 +130,7 @@ Not yet built (deferred):
 
 ## Notable design decisions to remember
 
-- LLM prompt is in `lib/llm/prompt.js`. It explicitly forbids generic prefixes ("Active task:", "Research:") and caps labels at 22 chars so collapsed Chrome tab groups remain distinguishable. Don't lengthen.
+- AI prompt is in `lib/llm/prompt.js`. It explicitly forbids generic prefixes ("Active task:", "Research:") and caps labels at 22 chars so collapsed Chrome tab groups remain distinguishable. Don't lengthen.
 - Auto-triage reassesses every tab in the window (including already-grouped). This was an explicit user decision — the previous "only ungrouped" filter is gone. Pinned tabs are always excluded.
 - The `chrome.tabs.lastAccessed` field powers the stale-tab badge, the new-tab "stale" section, and the sleep-stale feature — all share `settings.badge.thresholdHours`.
 - The triage cache (`lib/triage_cache.js`) is what powers the new-tab dashboard's "Latest triage" card. Auto-triage and manual triage both write to it; the new-tab page reads.

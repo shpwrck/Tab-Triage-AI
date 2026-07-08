@@ -55,7 +55,7 @@ chrome.commands.onCommand.addListener(async cmd => {
       chrome.notifications.create({
         type: "basic",
         iconUrl: chrome.runtime.getURL("icons/icon128.png"),
-        title: "Tab Triage failed",
+        title: "Tab Triage AI failed",
         message: e?.message ?? String(e),
         priority: 1,
       }).catch(() => {});
@@ -66,7 +66,7 @@ chrome.commands.onCommand.addListener(async cmd => {
 function formatManualTriageNotification({ groups, candidates, totalCandidates, cap, applySummary }) {
   if (!groups?.length) {
     return {
-      title: "Tab Triage",
+      title: "Tab Triage AI",
       message: "Triage finished, but no tab groups were applied.",
       priority: 0,
     };
@@ -80,22 +80,22 @@ function formatManualTriageNotification({ groups, candidates, totalCandidates, c
   const scopedCount = cap?.applied
     ? `${summary.groupedTabCount} of ${totalCandidates}`
     : String(summary.groupedTabCount);
-  const clusterWord = summary.groupedGroupCount === 1 ? "cluster" : "clusters";
+  const groupWord = summary.groupedGroupCount === 1 ? "group" : "groups";
 
   if (summary.failedGroupCount) {
     const successPrefix = summary.groupedGroupCount
-      ? `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${clusterWord}. `
+      ? `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${groupWord}. `
       : "No tab groups were applied. ";
     return {
-      title: summary.groupedGroupCount ? "Tab Triage partially grouped" : "Tab Triage could not group tabs",
+      title: summary.groupedGroupCount ? "Tab Triage AI partially grouped" : "Tab Triage AI could not group tabs",
       message: `${successPrefix}${formatApplyFailureMessage(summary)}`,
       priority: 1,
     };
   }
 
   return {
-    title: "Tab Triage",
-    message: `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${clusterWord}.`,
+    title: "Tab Triage AI",
+    message: `Grouped ${scopedCount} tabs into ${summary.groupedGroupCount} ${groupWord}.`,
     priority: 0,
   };
 }

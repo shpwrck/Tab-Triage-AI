@@ -56,15 +56,15 @@
       <h1>Privacy Policy — Tab Triage AI</h1>
       <p class="effective"><strong>Effective date:</strong> 2026-05-15</p>
 
-      <p>Tab Triage AI (the &ldquo;extension&rdquo;) is a Chrome extension that clusters your open tabs by intent, summarizes each cluster, and surfaces stale and duplicate tabs for cleanup. It is published by <strong>Tab Triage AI</strong> (&ldquo;we&rdquo;). This policy explains what data the extension handles, where it goes, and what stays on your device.</p>
+      <p>Tab Triage AI (the &ldquo;extension&rdquo;) is a Chrome extension that groups your open tabs by intent, summarizes each group, and surfaces stale and duplicate tabs for cleanup. It is published by <strong>Tab Triage AI</strong> (&ldquo;we&rdquo;). This policy explains what data the extension handles, where it goes, and what stays on your device.</p>
 
       <div class="short">
         <h2 style="margin-top: 0;">Short version</h2>
         <ul>
           <li>The extension does <strong>not</strong> operate any backend or proxy. We do not run servers that handle your data.</li>
           <li>It does <strong>not</strong> collect analytics, telemetry, error reports, or any usage data of any kind.</li>
-          <li>Your LLM provider API key, your settings, your saved sessions, your Notion integration token, and the cache of recent triage results live in your own browser&rsquo;s local storage.</li>
-          <li>When you actively trigger a triage, the <strong>titles and URLs</strong> of the tabs you select are sent directly from your browser to the LLM provider you configured (Anthropic, OpenAI, Google, or an OpenAI-compatible endpoint of your choice). Nothing else is sent.</li>
+          <li>Your AI provider API key, your settings, your saved sessions, your Notion integration token, and the cache of recent triage results live in your own browser&rsquo;s local storage.</li>
+          <li>When you actively trigger a triage, the <strong>titles and URLs</strong> of the tabs you select are sent directly from your browser to the AI provider you configured (Anthropic, OpenAI, Google, or an OpenAI-compatible endpoint of your choice). Nothing else is sent.</li>
           <li>When you actively click &ldquo;Send to Notion,&rdquo; the contents of that session or triage are sent directly from your browser to Notion using the integration token you configured.</li>
           <li>When you opt in to cross-device sync, your saved sessions are mirrored through Chrome&rsquo;s built-in <code>chrome.storage.sync</code> channel. We never see this data.</li>
           <li>When you purchase a lifetime license, payment is processed by ExtensionPay and Stripe; we receive only the confirmation that you paid.</li>
@@ -76,10 +76,10 @@
       <table>
         <thead><tr><th>Data</th><th>Why it exists</th></tr></thead>
         <tbody>
-          <tr><td>LLM provider, model, API key, optional base URL, optional custom grouping rules</td><td>Required to run triages</td></tr>
+          <tr><td>AI provider, model, API key, optional base URL, optional custom grouping rules</td><td>Required to run triages</td></tr>
           <tr><td>Notion integration token + parent page URL or ID (only if you set them up)</td><td>Required for &ldquo;Send to Notion&rdquo;</td></tr>
           <tr><td>Saved sessions (titles, URLs, group labels, summaries, optional notes)</td><td>The session list you can restore from</td></tr>
-          <tr><td>Most recent triage cache (groups + tab titles/URLs + timestamp)</td><td>Powers the new-tab dashboard without re-querying the LLM</td></tr>
+          <tr><td>Most recent triage cache (groups + tab titles/URLs + timestamp)</td><td>Powers the new-tab dashboard without calling the AI provider again</td></tr>
           <tr><td>Settings: auto-triage thresholds, badge config, sleep config, sync toggle</td><td>Your preferences</td></tr>
           <tr><td>Free-tier quota counter (current week&rsquo;s triage count)</td><td>Enforces the 5-triages-per-week free limit</td></tr>
         </tbody>
@@ -88,7 +88,7 @@
 
       <h2>What leaves your device, when, and to whom</h2>
 
-      <h3>LLM provider (Anthropic, OpenAI / OpenAI-compatible, Google)</h3>
+      <h3>AI provider (Anthropic, OpenAI / OpenAI-compatible, Google)</h3>
       <p><strong>Triggered by:</strong> clicking &ldquo;Triage tabs,&rdquo; clicking &ldquo;Triage now,&rdquo; or auto-triage firing in the background while enabled.</p>
       <p><strong>Sent:</strong> a JSON array containing the <code>title</code>, <code>url</code>, and <code>id</code> of each selected tab; plus your saved system prompt (which may include your custom grouping rules, if you set any). Tab content (page text) is <strong>not</strong> read or sent &mdash; only titles and URLs.</p>
       <p><strong>Destination:</strong> the host you chose. Defaults are <code>api.anthropic.com</code>, <code>api.openai.com</code>, or <code>generativelanguage.googleapis.com</code>; or whatever Base URL you supply for an OpenAI-compatible provider.</p>
@@ -118,7 +118,7 @@
           <tr><td><code>windows</code></td><td>Open a new window when you restore a session into one; focus windows when switching tabs</td></tr>
           <tr><td><code>alarms</code></td><td>Debounce auto-triage runs and refresh the toolbar badge on a schedule</td></tr>
           <tr><td><code>notifications</code></td><td>Show &ldquo;Grouped N tabs&rdquo; notifications after an auto-triage run</td></tr>
-          <tr><td>Host permissions for LLM/Notion/ExtensionPay endpoints</td><td>Direct browser-to-provider API calls; no proxy in between</td></tr>
+          <tr><td>Host permissions for AI provider, Notion, and ExtensionPay endpoints</td><td>Direct browser-to-provider API calls; no proxy in between</td></tr>
           <tr><td>Content script on <code>extensionpay.com</code></td><td>Detect successful payment so your lifetime status activates immediately</td></tr>
         </tbody>
       </table>
