@@ -12,7 +12,11 @@ const $ = sel => document.querySelector(sel);
 const state = {
   cache: null,
   staleTabs: [],
+  pendingNoteSaves: new Map(),
+  noteSaveTimers: new Map(),
 };
+
+const NOTE_SAVE_ACK_GRACE_MS = 10000;
 
 const els = {
   statOpen: $("#stat-open"),
@@ -57,7 +61,9 @@ async function init() {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes.tt_last_triage) renderLatest().catch(() => {});
-    if (changes.tt_sessions) renderSessions().catch(() => {});
+    if (changes.tt_sessions && !isOwnNoteAutosaveChange(changes.tt_sessions)) {
+      renderSessions().catch(() => {});
+    }
   });
   // Tab inventory changes — debounce so a rapid burst (opening 10 links
   // at once, navigating, etc.) collapses into one re-render.
@@ -80,6 +86,75 @@ function debounce(fn, ms) {
     if (t) clearTimeout(t);
     t = setTimeout(() => fn(...args), ms);
   };
+}
+
+function trackNoteAutosave(id, notes) {
+  const key = String(id);
+  const value = normalizeNote(notes);
+  const values = state.pendingNoteSaves.get(key) ?? new Set();
+  values.add(value);
+  state.pendingNoteSaves.set(key, values);
+
+  const existingTimer = state.noteSaveTimers.get(key);
+  if (existingTimer) clearTimeout(existingTimer);
+  state.noteSaveTimers.set(key, setTimeout(() => {
+    state.pendingNoteSaves.delete(key);
+    state.noteSaveTimers.delete(key);
+  }, NOTE_SAVE_ACK_GRACE_MS));
+}
+
+function clearTrackedNoteAutosave(id, notes) {
+  const key = String(id);
+  const values = state.pendingNoteSaves.get(key);
+  if (!values) return;
+  values.delete(normalizeNote(notes));
+  if (values.size) return;
+
+  state.pendingNoteSaves.delete(key);
+  const timer = state.noteSaveTimers.get(key);
+  if (timer) clearTimeout(timer);
+  state.noteSaveTimers.delete(key);
+}
+
+function isOwnNoteAutosaveChange(change) {
+  const oldSessions = Array.isArray(change.oldValue) ? change.oldValue : [];
+  const newSessions = Array.isArray(change.newValue) ? change.newValue : [];
+  if (!oldSessions.length || oldSessions.length !== newSessions.length) return false;
+
+  const matched = [];
+  for (let i = 0; i < newSessions.length; i++) {
+    const previous = oldSessions[i];
+    const next = newSessions[i];
+    if (!previous || !next || previous.id !== next.id) return false;
+    if (sessionsMatch(previous, next)) continue;
+    if (!sessionsMatchExceptNotes(previous, next)) return false;
+
+    const notes = normalizeNote(next.notes);
+    const pending = state.pendingNoteSaves.get(String(next.id));
+    if (!pending?.has(notes)) return false;
+    matched.push([next.id, notes]);
+  }
+
+  if (!matched.length) return false;
+  for (const [id, notes] of matched) clearTrackedNoteAutosave(id, notes);
+  return true;
+}
+
+function sessionsMatch(a, b) {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+function sessionsMatchExceptNotes(a, b) {
+  return JSON.stringify(sessionWithoutNotes(a)) === JSON.stringify(sessionWithoutNotes(b));
+}
+
+function sessionWithoutNotes(session) {
+  const { notes: _notes, ...rest } = session ?? {};
+  return rest;
+}
+
+function normalizeNote(notes) {
+  return String(notes ?? "");
 }
 
 async function renderStats() {
@@ -546,9 +621,20 @@ async function renderSessions() {
   els.sessionList.querySelectorAll("textarea.session-notes").forEach(ta => {
     const id = ta.dataset.id;
     const persist = debounce(async () => {
-      await updateSession(id, { notes: ta.value });
+      const notes = ta.value;
+      trackNoteAutosave(id, notes);
+      try {
+        await updateSession(id, { notes });
+      } catch (e) {
+        clearTrackedNoteAutosave(id, notes);
+        throw e;
+      }
     }, 500);
     ta.addEventListener("input", persist);
+    ta.addEventListener("input", () => {
+      const session = sessions.find(x => x.id === id);
+      if (session) session.notes = ta.value;
+    });
     // Auto-grow rows so the textarea expands as the user types.
     ta.addEventListener("input", () => {
       ta.style.height = "auto";
