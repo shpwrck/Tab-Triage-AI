@@ -22,12 +22,16 @@ const requiredSnippets = [
     snippet: '<button type="button" class="search-result-button" aria-label="Switch to tab: ${escapeAttr(t.title || t.url)}">',
   },
   {
-    label: "session search primary action names the session",
-    snippet: '<button type="button" class="search-result-button" aria-label="Open saved session here: ${escapeAttr(s.title)}">',
+    label: "session search primary row names restore actions",
+    snippet: '<button type="button" class="search-result-button" aria-label="View saved session restore actions: ${escapeAttr(s.title)}"',
+  },
+  {
+    label: "session search open-here action names the session",
+    snippet: 'title="Open here" aria-label="Open saved session here: ${escapeAttr(s.title)}"',
   },
   {
     label: "session search new-window action names the session",
-    snippet: '<button type="button" class="search-aux" title="Open in a new window" aria-label="Open saved session in a new window: ${escapeAttr(s.title)}">',
+    snippet: 'title="Open in a new window" aria-label="Open saved session in a new window: ${escapeAttr(s.title)}"',
   },
   {
     label: "saved-session restore-here action names the session",
@@ -188,5 +192,25 @@ for (const { source, name } of visibleLiveHelpers) {
     `${name} should rely on its visible live region instead of mirroring to a hidden live region`,
   );
 }
+
+const renderSearchSessionsBody = extractFunctionBody(popup, "renderSearchSessions");
+assert.ok(
+  renderSearchSessionsBody.includes('mainButton.addEventListener("click", viewActions);'),
+  "session search row click should focus explicit restore actions",
+);
+assert.ok(
+  renderSearchSessionsBody.includes("items.push({ element: mainButton, activate: viewActions });"),
+  "session search keyboard activation should focus explicit restore actions",
+);
+assert.doesNotMatch(
+  renderSearchSessionsBody,
+  /mainButton\.addEventListener\("click",\s*restoreHere\)/,
+  "session search row click should not restore into the current window",
+);
+assert.ok(
+  extractFunctionBody(popup, "confirmLargeSearchSessionRestore")
+    .includes("LARGE_SEARCH_SESSION_RESTORE_THRESHOLD"),
+  "large session search restores should require confirmation",
+);
 
 console.log("Popup accessibility assertions passed.");

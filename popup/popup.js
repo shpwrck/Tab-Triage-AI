@@ -105,6 +105,7 @@ const state = {
 let latestTabLoadId = 0;
 const removedTabIds = new Set();
 let editPersistTimer = null;
+const LARGE_SEARCH_SESSION_RESTORE_THRESHOLD = 10;
 
 function announceStatus(msg) {
   announceToLiveRegion(els.srStatus, msg);
@@ -1581,19 +1582,26 @@ function renderSearchSessions(sessions) {
   els.searchSessionList.innerHTML = "";
   const items = [];
   for (const s of sessions) {
-    const totalTabs = s.groups.reduce((n, g) => n + g.tabs.length, 0);
+    const totalTabs = sessionTabCount(s);
+    const disabled = totalTabs ? "" : " disabled";
+    const hintId = `search-session-${items.length + 1}-hint`;
     const li = document.createElement("li");
+    li.className = "search-session-result";
     li.innerHTML = `
-      <button type="button" class="search-result-button" aria-label="Open saved session here: ${escapeAttr(s.title)}">
+      <button type="button" class="search-result-button" aria-label="View saved session restore actions: ${escapeAttr(s.title)}" aria-describedby="${hintId}">
         <span class="title" title="${escapeAttr(s.title)}">${escape(s.title)}</span>
-        <span class="badge">${totalTabs} tabs</span>
+        <span class="badge">${totalTabs} ${plural(totalTabs, "tab")}</span>
         <span class="host">${escape(new Date(s.createdAt).toLocaleDateString())}</span>
       </button>
-      <button type="button" class="search-aux" title="Open in a new window" aria-label="Open saved session in a new window: ${escapeAttr(s.title)}">New window</button>
+      <span id="${hintId}" class="sr-only">Use Open here or New window to restore this saved session.</span>
+      <div class="search-session-actions" role="group" aria-label="Restore saved session: ${escapeAttr(s.title)}">
+        <button type="button" class="search-aux" data-search-action="restore-here" title="Open here" aria-label="Open saved session here: ${escapeAttr(s.title)}"${disabled}>Open here</button>
+        <button type="button" class="search-aux" data-search-action="restore-new" title="Open in a new window" aria-label="Open saved session in a new window: ${escapeAttr(s.title)}"${disabled}>New window</button>
+      </div>
     `;
-    const tabCount = sessionTabCount(s);
     const restoreHere = async () => {
-      if (!tabCount) return;
+      if (!totalTabs) return;
+      if (!confirmLargeSearchSessionRestore(s, "in this window")) return;
       try {
         const win = await chrome.windows.getCurrent();
         await restoreSession({ groups: s.groups, windowId: win.id });
@@ -1603,7 +1611,8 @@ function renderSearchSessions(sessions) {
       }
     };
     const restoreNewWindow = async () => {
-      if (!tabCount) return;
+      if (!totalTabs) return;
+      if (!confirmLargeSearchSessionRestore(s, "in a new window")) return;
       try {
         await restoreSession({ groups: s.groups });
         window.close();
@@ -1612,15 +1621,36 @@ function renderSearchSessions(sessions) {
       }
     };
     const mainButton = li.querySelector(".search-result-button");
-    mainButton.addEventListener("click", restoreHere);
-    li.querySelector(".search-aux").addEventListener("click", async ev => {
+    const openHereButton = li.querySelector("[data-search-action='restore-here']");
+    const newWindowButton = li.querySelector("[data-search-action='restore-new']");
+    const viewActions = () => {
+      if (!totalTabs) {
+        announceStatus(`"${s.title}" has no tabs to restore.`);
+        return;
+      }
+      announceStatus(`Use Open here or New window to restore "${s.title}".`);
+      focusElement(openHereButton);
+    };
+    mainButton.addEventListener("click", viewActions);
+    openHereButton.addEventListener("click", async ev => {
+      ev.stopPropagation();
+      await restoreHere();
+    });
+    newWindowButton.addEventListener("click", async ev => {
       ev.stopPropagation();
       await restoreNewWindow();
     });
     els.searchSessionList.appendChild(li);
-    items.push({ element: mainButton, activate: restoreHere });
+    items.push({ element: mainButton, activate: viewActions });
   }
   return items;
+}
+
+function confirmLargeSearchSessionRestore(session, destinationLabel) {
+  const tabCount = sessionTabCount(session);
+  if (tabCount <= LARGE_SEARCH_SESSION_RESTORE_THRESHOLD) return true;
+  const title = session?.title || "this saved session";
+  return confirm(`Open ${tabCount} ${plural(tabCount, "tab")} from "${title}" ${destinationLabel}?`);
 }
 
 function isSearchOpen() {
