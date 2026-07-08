@@ -16,6 +16,7 @@ import { runQuotaLimitedTriage, TriageQuotaError } from "../lib/triage_quota.js"
 import { getStaleTabs, isTriageEligibleTab, splitStaleBulkActionTabs, staleThresholdMs } from "../lib/tab_policy.js";
 import { refreshPlan, openCheckout } from "../lib/billing.js";
 import { getPlanQuotaSummary, formatLifetimePrice } from "../lib/plan_quota.js";
+import { normalizeTriageGroups } from "../lib/triage_normalize.js";
 import {
   BACKGROUND_FEATURES,
   BACKGROUND_STATUS_KEY,
@@ -928,18 +929,7 @@ async function onTriageNow() {
         if (cap.applied) setHeroStatus(cap.message);
       },
       afterTriage: async ({ rawGroups, tabs: triageCandidates, cap }) => {
-        const tabsById = new Map(triageCandidates.map(t => [t.id, t]));
-        const groups = rawGroups.map(g => {
-          const groupTabs = (g.tab_ids ?? [])
-            .map(id => tabsById.get(id))
-            .filter(Boolean);
-          return {
-            label: g.label,
-            emoji: g.emoji,
-            summary: g.summary,
-            tabs: groupTabs.map(t => ({ id: t.id, windowId: t.windowId, title: t.title, url: t.url, favIconUrl: t.favIconUrl })),
-          };
-        });
+        const groups = normalizeTriageGroups({ rawGroups, tabs: triageCandidates });
         const applyResults = await applyAllAsTabGroups({ groups });
         const applySummary = summarizeApplyResults({ groups, results: applyResults });
         await saveTriageCache({ windowId: win.id, groups });
