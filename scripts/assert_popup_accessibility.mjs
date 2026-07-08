@@ -135,4 +135,37 @@ for (const { label, source, snippet } of behaviorSnippets) {
   assert.ok(source.includes(snippet), label);
 }
 
+function extractFunctionBody(source, name) {
+  const start = source.indexOf(`function ${name}`);
+  assert.notEqual(start, -1, `${name} exists`);
+  const open = source.indexOf("{", start);
+  assert.notEqual(open, -1, `${name} has a body`);
+  let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === "{") depth++;
+    else if (source[i] === "}") {
+      depth--;
+      if (depth === 0) return source.slice(open, i + 1);
+    }
+  }
+  assert.fail(`${name} body closes`);
+}
+
+const visibleLiveHelpers = [
+  { source: popup, name: "showError" },
+  { source: popup, name: "showStatusNotice" },
+  { source: popup, name: "showResultNotice" },
+  { source: newtab, name: "setHeroStatus" },
+  { source: options, name: "setStatusElement" },
+  { source: options, name: "setStatusHtml" },
+];
+
+for (const { source, name } of visibleLiveHelpers) {
+  assert.doesNotMatch(
+    extractFunctionBody(source, name),
+    /\bannounce(?:Status|Alert)\(/,
+    `${name} should rely on its visible live region instead of mirroring to a hidden live region`,
+  );
+}
+
 console.log("Popup accessibility assertions passed.");

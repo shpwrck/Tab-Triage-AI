@@ -1292,8 +1292,6 @@ function setHeroStatus(msg, cls = "", details = "") {
   els.heroStatus.className = `status muted ${cls}`;
   els.heroStatus.setAttribute("role", cls === "err" ? "alert" : "status");
   els.heroStatus.setAttribute("aria-live", cls === "err" ? "assertive" : "polite");
-  if (cls === "err") announceAlert(msg);
-  else announceStatus(msg);
 }
 
 function formatApplyStatus(summary, cap) {

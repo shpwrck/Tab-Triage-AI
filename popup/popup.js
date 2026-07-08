@@ -996,7 +996,6 @@ function showError(msg, details = "") {
   els.error.textContent = msg;
   els.error.title = details;
   els.error.classList.remove("hidden");
-  announceAlert(msg);
 }
 function hideError() {
   els.error.classList.add("hidden");
@@ -1011,7 +1010,6 @@ function showStatusNotice(msg) {
   }
   els.statusNotice.textContent = msg;
   els.statusNotice.classList.remove("hidden");
-  announceStatus(msg);
 }
 
 function hideStatusNotice() {
@@ -1026,7 +1024,6 @@ function showResultNotice(msg) {
   }
   els.resultNotice.textContent = msg;
   els.resultNotice.classList.remove("hidden");
-  announceStatus(msg);
 }
 
 function hideResultNotice() {

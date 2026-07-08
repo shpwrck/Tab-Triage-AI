@@ -89,28 +89,10 @@ const els = {
   importFile: $("#import-file"),
   dataStatus: $("#data-status"),
   dataHint: $("#data-hint"),
-  srStatus: $("#sr-status"),
-  srAlert: $("#sr-alert"),
 };
 
 const providerDrafts = {};
 let activeLlmProvider = "";
-
-function announceStatus(msg) {
-  announceToLiveRegion(els.srStatus, msg);
-}
-
-function announceAlert(msg) {
-  announceToLiveRegion(els.srAlert, msg);
-}
-
-function announceToLiveRegion(region, msg) {
-  if (!region || !msg) return;
-  region.textContent = "";
-  requestAnimationFrame(() => {
-    region.textContent = msg;
-  });
-}
 
 function setStatusElement(el, msg, cls = "", details = "") {
   if (!el) return;
@@ -118,8 +100,6 @@ function setStatusElement(el, msg, cls = "", details = "") {
   el.title = details;
   el.className = `status ${cls}`;
   setLiveStatusMode(el, cls);
-  if (cls === "err") announceAlert(msg);
-  else announceStatus(msg);
 }
 
 function setStatusHtml(el, html, cls = "", details = "") {
@@ -128,9 +108,6 @@ function setStatusHtml(el, html, cls = "", details = "") {
   el.title = details;
   el.className = cls || "muted";
   setLiveStatusMode(el, cls);
-  const text = el.textContent.trim();
-  if (cls === "err") announceAlert(text);
-  else announceStatus(text);
 }
 
 function setLiveStatusMode(el, cls = "") {
