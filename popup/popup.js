@@ -710,14 +710,14 @@ async function onSessionAction(action, id) {
   const s = sessions.find(x => x.id === id);
   if (!s) return;
   if (action === "restore-here" || action === "restore-new") {
-    const urls = s.groups.flatMap(g => g.tabs.map(t => t.url));
+    if (!sessionTabCount(s)) return;
     try {
       if (action === "restore-here") {
         const win = await chrome.windows.getCurrent();
-        await restoreSession({ urls, windowId: win.id });
+        await restoreSession({ groups: s.groups, windowId: win.id });
         window.close();
       } else {
-        await restoreSession({ urls });
+        await restoreSession({ groups: s.groups });
       }
     } catch (e) {
       showError(`Restore failed: ${e.message ?? e}`);
@@ -803,6 +803,12 @@ function groupsToMarkdown(groups) {
 
 function sessionToMarkdown(s) {
   return groupsToMarkdown(s.groups);
+}
+
+function sessionTabCount(session) {
+  return (session?.groups ?? []).reduce((count, group) => (
+    count + (group?.tabs ?? []).filter(tab => typeof tab?.url === "string" && tab.url.trim()).length
+  ), 0);
 }
 
 function setBusy(busy) {
@@ -1048,21 +1054,21 @@ function renderSearchSessions(sessions) {
       <span class="host">${escape(new Date(s.createdAt).toLocaleDateString())}</span>
       <button class="search-aux" title="Open in a new window" aria-label="Open session in a new window">↗</button>
     `;
-    const urls = s.groups.flatMap(g => g.tabs.map(t => t.url));
+    const tabCount = sessionTabCount(s);
     const restoreHere = async () => {
-      if (!urls.length) return;
+      if (!tabCount) return;
       try {
         const win = await chrome.windows.getCurrent();
-        await restoreSession({ urls, windowId: win.id });
+        await restoreSession({ groups: s.groups, windowId: win.id });
         window.close();
       } catch (e) {
         showError(`Restore failed: ${e.message ?? e}`);
       }
     };
     const restoreNewWindow = async () => {
-      if (!urls.length) return;
+      if (!tabCount) return;
       try {
-        await restoreSession({ urls });
+        await restoreSession({ groups: s.groups });
         window.close();
       } catch (e) {
         showError(`Restore failed: ${e.message ?? e}`);
