@@ -249,6 +249,16 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .status.err { color: var(--danger); }
 .hidden { display: none !important; }
 
+.lifetime-note {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 10px 12px;
+}
+.lifetime-note.warn { border-color: var(--warn); }
+
 .session-limit-settings {
   border-top: 1px solid var(--border);
   margin: 14px 0 12px;
